@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Site {
+  id                    Int     @id @default(autoincrement())
+  semsSiteId            String  @unique
+  epaId                 String  @unique
+  name                  String
+  streetAddress         String?
+  supplementalAddress   String?
+  city                  String?
+  county                String?
+  state                 String
+  zip                   String?
+  fipsCode              String?
+  congressionalDistrict String?
+  epaRegion             String?
+  latitude              Float
+  longitude             Float
+  nplStatusCode         String
+  nplStatusName          String
+  federalFacility       Boolean @default(false)
+  archived              Boolean @default(false)
+
+  humanExposureStatus        String?
+  groundwaterMigrationStatus String?
+  constructionComplete       String?
+  sitewideReadyForUse        String?
+  measuresFetchedAt          DateTime?
+
+  profileUrl   String
+  contaminants SiteContaminant[]
+
+  @@index([latitude, longitude])
+  @@index([state])
+}
+
+model Contaminant {
+  id    Int               @id @default(autoincrement())
+  name  String            @unique
+  sites SiteContaminant[]
+}
+
+model SiteContaminant {
+  site          Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  siteId        Int
+  contaminant   Contaminant @relation(fields: [contaminantId], references: [id])
+  contaminantId Int
+  media         String
+
+  @@id([siteId, contaminantId, media])
+}
+
+model GeocodeCache {
+  normalizedQuery String   @id
+  latitude        Float
+  longitude       Float
+  matchedAddress  String
+  provider        String
+  createdAt       DateTime @default(now())
+}
+
+model IngestRun {
+  id              Int       @id @default(autoincrement())
+  source          String
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  recordsUpserted Int       @default(0)
+  recordsRejected Int       @default(0)
+  status          String
+  error           String?
+}

@@ -25,6 +25,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "maplibre-gl": "^6.0.0"
   },
@@ -34,6 +35,7 @@
     "@sveltejs/kit": "^2.70.1",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.1.2",
     "dotenv": "^17.4.2",
     "prisma": "^7.9.1",
     "svelte": "^5.56.8",
