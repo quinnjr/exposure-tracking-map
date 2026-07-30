@@ -3,8 +3,14 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { normalizeContaminants, normalizeSites } from '../src/lib/server/ingest/normalize';
 import { fetchContaminantRows } from '../src/lib/server/ingest/sources/contaminants';
+import { fetchMeasures, SCRAPE_DELAY_MS } from '../src/lib/server/ingest/sources/measures';
 import { fetchSiteRows } from '../src/lib/server/ingest/sources/sites';
-import { upsertContaminants, upsertSites, withIngestRun } from '../src/lib/server/ingest/upsert';
+import {
+  upsertContaminants,
+  upsertMeasures,
+  upsertSites,
+  withIngestRun
+} from '../src/lib/server/ingest/upsert';
 
 type Args = {
   refresh: boolean;
@@ -78,6 +84,49 @@ async function ingestContaminants(prisma: PrismaClient, args: Args): Promise<voi
   });
 }
 
+async function ingestMeasures(prisma: PrismaClient, args: Args): Promise<void> {
+  const all = await prisma.site.findMany({
+    select: { semsSiteId: true },
+    orderBy: { semsSiteId: 'asc' }
+  });
+  if (all.length === 0) {
+    throw new Error('No sites in the database — run `pnpm download --source=sites` first');
+  }
+
+  const sites = args.limit ? all.slice(0, args.limit) : all;
+  const estimateMinutes = Math.ceil((sites.length * SCRAPE_DELAY_MS) / 60000);
+  console.log(
+    `[measures] scraping ${sites.length} of ${all.length} sites (~${estimateMinutes} min)` +
+      (args.limit ? ` — limited by --limit=${args.limit}` : '')
+  );
+
+  if (args.dryRun) {
+    console.log('[measures] dry run — nothing fetched or written');
+    return;
+  }
+
+  await withIngestRun(prisma, 'measures', async () => {
+    let upserted = 0;
+    let failed = 0;
+
+    for (const [index, { semsSiteId }] of sites.entries()) {
+      const measures = await fetchMeasures(semsSiteId, { refresh: args.refresh });
+      if (measures === null) {
+        failed += 1;
+      } else {
+        await upsertMeasures(prisma, semsSiteId, measures);
+        upserted += 1;
+      }
+      if ((index + 1) % 100 === 0) {
+        console.log(`[measures] ${index + 1}/${sites.length} (${failed} failed)`);
+      }
+    }
+
+    console.log(`[measures] upserted ${upserted}, failed ${failed}`);
+    return { upserted, rejected: failed, value: undefined };
+  });
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const url = process.env.DATABASE_URL ?? 'file:./dev.db';
@@ -85,6 +134,7 @@ async function main(): Promise<void> {
   try {
     if (args.sources.includes('sites')) await ingestSites(prisma, args);
     if (args.sources.includes('contaminants')) await ingestContaminants(prisma, args);
+    if (args.sources.includes('measures')) await ingestMeasures(prisma, args);
   } finally {
     await prisma.$disconnect();
   }

@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import type { ContaminantRecord, SiteRecord } from './normalize';
+import type { MeasureMap } from './parseMeasures';
 
 /**
  * Insert or update sites keyed on semsSiteId. Only fields owned by the
@@ -125,4 +126,21 @@ export async function upsertContaminants(
     );
   }
   return count;
+}
+
+/**
+ * Write one site's performance measures, stamping when they were fetched.
+ * Writes ONLY the four measure fields plus measuresFetchedAt — never site
+ * identity or coordinates, which upsertSites deliberately cannot overwrite
+ * from its side either.
+ */
+export async function upsertMeasures(
+  prisma: PrismaClient,
+  semsSiteId: string,
+  measures: MeasureMap
+): Promise<void> {
+  await prisma.site.update({
+    where: { semsSiteId },
+    data: { ...measures, measuresFetchedAt: new Date() }
+  });
 }
