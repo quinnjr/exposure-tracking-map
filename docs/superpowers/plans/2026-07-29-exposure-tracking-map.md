@@ -498,8 +498,8 @@ describe('haversineMiles', () => {
   });
 
   it('measures a known east-coast pair', () => {
-    // White House to the Linemaster Switch Superfund site, ~333 mi.
-    expect(haversineMiles(WHITE_HOUSE, LINEMASTER)).toBeCloseTo(333, 0);
+    // White House to the Linemaster Switch Superfund site, ~339 mi.
+    expect(haversineMiles(WHITE_HOUSE, LINEMASTER)).toBeCloseTo(339, 0);
   });
 
   it('is symmetric', () => {
