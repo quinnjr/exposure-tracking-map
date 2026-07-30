@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EARTH_RADIUS_MILES, haversineMiles } from '$lib/geo/haversine';
 import {
   DEFAULT_RADIUS_MILES,
   isValidRadius,
@@ -15,6 +16,11 @@ const site = (name: string, latitude: number, longitude: number) => ({
   latitude,
   longitude
 });
+
+// Physical constant, not an implementation detail: miles per degree of latitude
+// on the same sphere haversineMiles uses. Deriving it here keeps the fixture at
+// the TRUE boundary instead of a hardcoded approximation.
+const MILES_PER_DEGREE_LAT = (Math.PI * EARTH_RADIUS_MILES) / 180; // ~69.0934
 
 // Roughly 1, 7, and 70 miles out, due north.
 const CLOSE = site('close', 38.9131, -77.035188);
@@ -68,9 +74,17 @@ describe('withinRadius', () => {
   });
 
   it('includes a candidate exactly at the boundary', () => {
-    const boundary = site('boundary', CENTER.latitude + 25 / 69.055, CENTER.longitude);
-    const r = withinRadius(CENTER, [boundary], 25);
-    expect(r).toHaveLength(1);
+    const boundary = site('boundary', CENTER.latitude + 25 / MILES_PER_DEGREE_LAT, CENTER.longitude);
+    // Confirm the fixture really is at the radius before relying on it.
+    expect(haversineMiles(CENTER, boundary)).toBeCloseTo(25, 3);
+    expect(withinRadius(CENTER, [boundary], 25)).toHaveLength(1);
+  });
+
+  it('excludes a candidate just past the boundary', () => {
+    // Far enough out that rounding to one decimal cannot pull it back to 25.0.
+    const justOutside = site('just-outside', CENTER.latitude + 25.1 / MILES_PER_DEGREE_LAT, CENTER.longitude);
+    expect(haversineMiles(CENTER, justOutside)).toBeGreaterThan(25);
+    expect(withinRadius(CENTER, [justOutside], 25)).toHaveLength(0);
   });
 });
 
