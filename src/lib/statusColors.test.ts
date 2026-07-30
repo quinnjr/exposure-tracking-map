@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EXPOSURE_COLORS,
   EXPOSURE_LEGEND,
   MAPLIBRE_COLOR_EXPRESSION,
   exposureColor,
@@ -48,6 +49,21 @@ describe('MAPLIBRE_COLOR_EXPRESSION', () => {
     expect(MAPLIBRE_COLOR_EXPRESSION[0]).toBe('match');
     expect(JSON.stringify(MAPLIBRE_COLOR_EXPRESSION)).toContain('humanExposureStatus');
     // A match expression's final element is the default.
+    expect(MAPLIBRE_COLOR_EXPRESSION.at(-1)).toBe(UNKNOWN_COLOR);
+  });
+
+  it('matches on a case-normalised property so the map cannot disagree with exposureColor', () => {
+    expect(MAPLIBRE_COLOR_EXPRESSION[1]).toEqual([
+      'downcase',
+      ['to-string', ['get', 'humanExposureStatus']]
+    ]);
+  });
+
+  it('derives its labels from EXPOSURE_COLORS, so the two cannot drift', () => {
+    // Labels sit at odd indices between the match input and the trailing default.
+    const body = MAPLIBRE_COLOR_EXPRESSION.slice(2, -1);
+    const labels = body.filter((_, i) => i % 2 === 0);
+    expect(labels).toEqual(Object.keys(EXPOSURE_COLORS));
     expect(MAPLIBRE_COLOR_EXPRESSION.at(-1)).toBe(UNKNOWN_COLOR);
   });
 });

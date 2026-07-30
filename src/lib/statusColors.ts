@@ -26,9 +26,17 @@ export const EXPOSURE_LEGEND = [
 ] as const;
 
 /**
- * MapLibre `match` expression over the feature's humanExposureStatus property.
- * Case variants are listed explicitly because MapLibre has no lowercase
- * operator for property values.
+ * MapLibre `match` over the feature's humanExposureStatus.
+ *
+ * `to-string` maps a null/absent property to '' and `downcase` normalises casing,
+ * so this matches the same lowercase keys `exposureColor()` uses. Deriving the
+ * label/colour pairs from EXPOSURE_COLORS means the map and the legend can never
+ * disagree about a status the way two hand-maintained lists would.
+ *
+ * One residual gap versus `exposureColor()`: MapLibre has no `trim` operator, so
+ * this cannot strip surrounding whitespace the way `exposureColor()` does. That's
+ * fine in practice — `parseMeasures`'s `cellText()` already collapses whitespace
+ * before anything is stored, so persisted values have no leading/trailing spaces.
  *
  * Typed as `unknown[]` (rather than importing `ExpressionSpecification` from
  * the transitive `@maplibre/maplibre-gl-style-spec` package) so this module
@@ -37,12 +45,7 @@ export const EXPOSURE_LEGEND = [
  */
 export const MAPLIBRE_COLOR_EXPRESSION = [
   'match',
-  ['get', 'humanExposureStatus'],
-  ['Yes', 'yes'],
-  EXPOSURE_COLORS.yes,
-  ['No', 'no'],
-  EXPOSURE_COLORS.no,
-  ['Insufficient Data', 'Insufficient data', 'insufficient data'],
-  EXPOSURE_COLORS['insufficient data'],
+  ['downcase', ['to-string', ['get', 'humanExposureStatus']]],
+  ...Object.entries(EXPOSURE_COLORS).flatMap(([status, color]) => [status, color]),
   UNKNOWN_COLOR
 ] as unknown[];
