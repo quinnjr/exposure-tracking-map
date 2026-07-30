@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { boundingBox } from '$lib/geo/bbox';
 import { createTestDatabase, type TestDatabase } from '../../../tests/prisma-test-client';
 import { searchSites } from './search';
 
@@ -136,5 +137,29 @@ describe('searchSites', () => {
     );
     expect(r.outsideRadius).toBe(false);
     expect(r.results.map((x) => x.name)).toEqual(['ORDOT LANDFILL']);
+  });
+
+  it('finds sites across a bounding box that wraps the antimeridian', async () => {
+    await db.prisma.site.deleteMany();
+    // Real EPA site: ADAK NAVAL AIR STATION, in the Aleutians.
+    await db.prisma.site.create({ data: mkSite('9100001', 'ADAK NAVAL AIR STATION', 51.88, -176.6525) });
+
+    // A search point far enough west that the 100-mile box crosses -180.
+    const aleutian = vi.fn(async () => ({
+      latitude: 51.88,
+      longitude: -178.5,
+      matchedAddress: 'ADAK, AK',
+      provider: 'census'
+    }));
+
+    // Prove the premise: this box really does wrap, otherwise the test is vacuous.
+    const box = boundingBox({ latitude: 51.88, longitude: -178.5 }, 100);
+    expect(box.wrapsAntimeridian).toBe(true);
+    expect(box.minLongitude).toBeGreaterThan(box.maxLongitude);
+
+    const r = await searchSites(db.prisma, { address: 'Adak, AK', radiusMiles: 100 }, { geocoderImpl: aleutian });
+    expect(r.outsideRadius).toBe(false);
+    expect(r.results.map((x) => x.name)).toEqual(['ADAK NAVAL AIR STATION']);
+    expect(r.results[0].distanceMiles).toBeCloseTo(78.8, 0);
   });
 });
