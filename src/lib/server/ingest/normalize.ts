@@ -136,3 +136,48 @@ export function normalizeSites(rows: RawSiteRow[]): {
 
   return { records, rejected };
 }
+
+/** A row exactly as Envirofacts `envirofacts_contaminants` returns it. */
+export type RawContaminantRow = {
+  fk_site_id?: string | null;
+  operable_unit_num?: string | null;
+  action_name?: string | null;
+  type_code?: string | null;
+  seq?: number | null;
+  media_name?: string | null;
+  preferred_contaminant_name?: string | null;
+};
+
+export type ContaminantRecord = {
+  semsSiteId: string;
+  name: string;
+  media: string;
+};
+
+/**
+ * Reduce the contaminants feed to distinct (site, contaminant, medium) triples
+ * for sites we actually ingested. The source repeats a contaminant once per
+ * decision document and operable unit; that detail is not needed here.
+ */
+export function normalizeContaminants(
+  rows: RawContaminantRow[],
+  knownSiteIds: Set<string>
+): { records: ContaminantRecord[]; skipped: number } {
+  const byKey = new Map<string, ContaminantRecord>();
+  let skipped = 0;
+
+  for (const row of rows) {
+    const semsSiteId = text(row.fk_site_id);
+    const name = text(row.preferred_contaminant_name)?.toUpperCase() ?? null;
+    const media = text(row.media_name) ?? 'Other';
+
+    if (!semsSiteId || !name || !knownSiteIds.has(semsSiteId)) {
+      skipped += 1;
+      continue;
+    }
+
+    byKey.set(`${semsSiteId}|${name}|${media}`, { semsSiteId, name, media });
+  }
+
+  return { records: [...byKey.values()], skipped };
+}

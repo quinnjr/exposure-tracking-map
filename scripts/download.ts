@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-import { normalizeSites } from '../src/lib/server/ingest/normalize';
+import { normalizeContaminants, normalizeSites } from '../src/lib/server/ingest/normalize';
+import { fetchContaminantRows } from '../src/lib/server/ingest/sources/contaminants';
 import { fetchSiteRows } from '../src/lib/server/ingest/sources/sites';
-import { upsertSites, withIngestRun } from '../src/lib/server/ingest/upsert';
+import { upsertContaminants, upsertSites, withIngestRun } from '../src/lib/server/ingest/upsert';
 
 type Args = {
   refresh: boolean;
@@ -52,12 +53,38 @@ async function ingestSites(prisma: PrismaClient, args: Args): Promise<void> {
   });
 }
 
+async function ingestContaminants(prisma: PrismaClient, args: Args): Promise<void> {
+  const sites = await prisma.site.findMany({ select: { semsSiteId: true } });
+  if (sites.length === 0) {
+    throw new Error('No sites in the database — run `pnpm download --source=sites` first');
+  }
+  const known = new Set(sites.map((s) => s.semsSiteId));
+
+  const rows = await fetchContaminantRows({ refresh: args.refresh });
+  const { records, skipped } = normalizeContaminants(rows, known);
+  console.log(
+    `[contaminants] ${rows.length} rows -> ${records.length} triples for ${known.size} sites (${skipped} skipped as non-NPL or unnamed)`
+  );
+
+  if (args.dryRun) {
+    console.log('[contaminants] dry run — nothing written');
+    return;
+  }
+
+  await withIngestRun(prisma, 'contaminants', async () => {
+    const upserted = await upsertContaminants(prisma, records);
+    console.log(`[contaminants] upserted ${upserted} links`);
+    return { upserted, rejected: skipped, value: undefined };
+  });
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const url = process.env.DATABASE_URL ?? 'file:./dev.db';
   const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
   try {
     if (args.sources.includes('sites')) await ingestSites(prisma, args);
+    if (args.sources.includes('contaminants')) await ingestContaminants(prisma, args);
   } finally {
     await prisma.$disconnect();
   }
