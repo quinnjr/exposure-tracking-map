@@ -3,6 +3,15 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { healthEnvUrlFor, parseMeasures } from './parseMeasures';
 
+// measures-no-table.html is derived from the real measures-linemaster.html
+// capture (site 0100041) with only the Performance Measures <table>...</table>
+// element removed by a script (a regex matching <table> blocks whose header
+// contains "Performance"..."Measure", the same test the parser itself uses).
+// Every other byte of the real page — chrome, headings, nav, footer, the
+// "Performance Measures" section intro prose — is left intact. This exercises
+// a realistic SiteProfiles Healthenv page that renders normally but has no
+// measures table, rather than arbitrary/unrelated HTML.
+
 const fixture = (name: string): string =>
   readFileSync(join(import.meta.dirname, 'fixtures', name), 'utf8');
 
@@ -25,7 +34,7 @@ describe('parseMeasures', () => {
   });
 
   it('returns all nulls for a page with no measures table', () => {
-    expect(parseMeasures(fixture('measures-none.html'))).toEqual({
+    expect(parseMeasures(fixture('measures-no-table.html'))).toEqual({
       humanExposureStatus: null,
       groundwaterMigrationStatus: null,
       constructionComplete: null,
