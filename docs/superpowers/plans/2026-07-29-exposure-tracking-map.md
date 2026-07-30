@@ -1242,7 +1242,7 @@ const BASE = 'https://data.epa.gov/efservice/envirofacts_site';
 export const NPL_STATUS_CODES = ['F', 'D', 'P'] as const;
 
 export const USER_AGENT =
-  'exposure-tracking-map/1.0 (research project; contact: quinn.josephr@gmail.com)';
+  'exposure-tracking-map/1.0 (research project; contact: 423821+quinnjr@users.noreply.github.com)';
 
 export type FetchOptions = { refresh?: boolean; fetchImpl?: typeof fetch };
 
