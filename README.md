@@ -16,7 +16,7 @@ Nothing here talks to a paid or account-gated service.
 
 ## Requirements
 
-Node 20+ and pnpm 11+.
+Node 20.19+ or 22.12+, and pnpm 11+.
 
 **Use pnpm, not npm.** `devEngines.packageManager` pins pnpm; npm is blocked.
 Run scripts with `pnpm exec <bin>` rather than `npx`.

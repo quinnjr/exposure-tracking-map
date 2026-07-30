@@ -53,8 +53,13 @@ test.describe('exposure tracking map', () => {
   // Verified against the live Census geocoder (2026-07-30): city/state-only
   // inputs like "Kaktovik, AK 99747" 422 because the one-line geocoder needs a
   // street address. "100 2nd Avenue, Glasgow, MT 59230" matches and, at a
-  // 5-mile radius, is outside range of all fixture sites — nearest is ~186.5
-  // mi away, well past 5 mi, so this reliably exercises the empty-radius path.
+  // 5-mile radius, is outside range of all fixture sites.
+  //
+  // Glasgow, MT is far from every fixture site: the nearest (FIXTURE MID SITE,
+  // in the DC area) is ~1,599 mi away, so a 5-mile radius is guaranteed empty
+  // and the nearest-3 fallback must engage. Note this differs from the ~186 mi
+  // seen against the real database — that is the distance to the nearest ACTUAL
+  // EPA site, whereas this suite seeds only four synthetic fixtures.
   test('reports the empty-radius case honestly with nearest sites', async ({ page }) => {
     await page.goto('/');
     await page.getByLabel('Street address, city, and state').fill(
