@@ -60,18 +60,16 @@ export async function withIngestRun<T>(
   }
 }
 
+// SQLite auto-commits (and fsyncs) each statement outside an explicit
+// transaction. An earlier unbatched version of this loop hit a Prisma P1008
+// SocketTimeout at 56,552 rows because every upsert was its own commit.
+// Batching writes inside `$transaction` collapses each batch to one commit.
+const WRITE_BATCH_SIZE = 2000;
+
 /**
  * Link contaminants to sites. Resolves site and contaminant ids up front so
  * the write loop performs no per-row lookups.
  */
-/**
- * SQLite auto-commits (and fsyncs) each statement outside an explicit
- * transaction, so issuing tens of thousands of individual upserts is
- * prohibitively slow. Batching writes inside `$transaction` collapses each
- * batch to a single commit.
- */
-const WRITE_BATCH_SIZE = 2000;
-
 export async function upsertContaminants(
   prisma: PrismaClient,
   records: ContaminantRecord[]
@@ -107,7 +105,13 @@ export async function upsertContaminants(
         for (const r of batch) {
           const siteId = siteIdBySems.get(r.semsSiteId);
           const contaminantId = contaminantIdByName.get(r.name);
-          if (siteId === undefined || contaminantId === undefined) continue;
+          if (siteId === undefined || contaminantId === undefined) {
+            throw new Error(
+              `Invariant violated: contaminant link references unknown ` +
+                `${siteId === undefined ? `site ${r.semsSiteId}` : `contaminant ${r.name}`}. ` +
+                `Records must be normalized against ingested sites before upserting.`
+            );
+          }
 
           await tx.siteContaminant.upsert({
             where: { siteId_contaminantId_media: { siteId, contaminantId, media: r.media } },
