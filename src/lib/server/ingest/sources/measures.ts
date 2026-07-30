@@ -50,7 +50,8 @@ export async function fetchMeasures(
   const url = healthEnvUrlFor(semsSiteId);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-    if (attempt > 0) await sleep(delayMs * (attempt + 1));
+    // Baseline politeness delay before every request, escalating as backoff on retries.
+    await sleep(delayMs * (attempt + 1));
     try {
       const res = await doFetch(url, { headers: { 'User-Agent': USER_AGENT } });
       if (!res.ok) {

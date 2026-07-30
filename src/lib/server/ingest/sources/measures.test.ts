@@ -137,4 +137,20 @@ describe('fetchMeasures', () => {
     const m = await fetchMeasures('0100041', { fetchImpl, delayMs: 0 });
     expect(m?.humanExposureStatus).toBe('Yes');
   });
+
+  it('enforces the delay before every request, not just retries, across different sites', async () => {
+    // 20ms rather than the real 400ms SCRAPE_DELAY_MS, so the suite stays fast.
+    const DELAY = 20;
+    const timestamps: number[] = [];
+    const fetchImpl = vi.fn(async () => {
+      timestamps.push(performance.now());
+      return ok();
+    }) as unknown as typeof fetch;
+
+    await fetchMeasures('0100041', { fetchImpl, delayMs: DELAY });
+    await fetchMeasures('0100094', { fetchImpl, delayMs: DELAY }); // different site: no cache hit
+
+    expect(timestamps).toHaveLength(2);
+    expect(timestamps[1] - timestamps[0]).toBeGreaterThanOrEqual(DELAY - 5); // small tolerance for timer jitter
+  });
 });
