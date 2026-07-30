@@ -667,8 +667,15 @@ export type BBox = {
   wrapsAntimeridian: boolean;
 };
 
-/** Miles per degree of latitude, effectively constant. */
-const MILES_PER_DEGREE_LAT = 69.055;
+/**
+ * Fraction of extra margin applied to the box. The box must never under-select --
+ * callers apply an exact haversine test afterwards, so over-selecting costs a few
+ * wasted comparisons while under-selecting silently drops real search results.
+ */
+const SAFETY_FACTOR = 1.001;
+
+/** Derived from the shared Earth radius so bbox and haversine cannot drift apart. */
+const degreesPerMileLatitude = 180 / (Math.PI * EARTH_RADIUS_MILES);
 
 /**
  * Smallest lat/lng box guaranteed to contain every point within `miles` of
@@ -2709,9 +2716,17 @@ describe('withinRadius', () => {
   });
 
   it('includes a candidate exactly at the boundary', () => {
-    const boundary = site('boundary', CENTER.latitude + 25 / 69.055, CENTER.longitude);
-    const r = withinRadius(CENTER, [boundary], 25);
-    expect(r).toHaveLength(1);
+    const boundary = site('boundary', CENTER.latitude + 25 / MILES_PER_DEGREE_LAT, CENTER.longitude);
+    // Confirm the fixture really is at the radius before relying on it.
+    expect(haversineMiles(CENTER, boundary)).toBeCloseTo(25, 3);
+    expect(withinRadius(CENTER, [boundary], 25)).toHaveLength(1);
+  });
+
+  it('excludes a candidate just past the boundary', () => {
+    // Far enough out that rounding to one decimal cannot pull it back to 25.0.
+    const justOutside = site('just-outside', CENTER.latitude + 25.1 / MILES_PER_DEGREE_LAT, CENTER.longitude);
+    expect(haversineMiles(CENTER, justOutside)).toBeGreaterThan(25);
+    expect(withinRadius(CENTER, [justOutside], 25)).toHaveLength(0);
   });
 });
 
@@ -2785,7 +2800,7 @@ export function nearest<T extends LatLng>(
 Run: `pnpm test src/lib/server/proximity.test.ts`
 Expected: 11 tests PASS.
 
-If the boundary test fails by a hair, that is the rounding interacting with the 69.055 miles-per-degree constant. Keep the rounding and widen the boundary fixture slightly inside the radius — do not remove the rounding, because the API contract returns one decimal place.
+Derive `MILES_PER_DEGREE_LAT` in the test from the shared `EARTH_RADIUS_MILES` export -- `(Math.PI * EARTH_RADIUS_MILES) / 180` -- rather than hardcoding an approximation. A hardcoded 69.055 puts the "boundary" fixture at 25.014 mi, so the test passes only because of the one-decimal rounding and never exercises the true geometric edge. Keep the rounding itself: the API contract returns one decimal place.
 
 - [ ] **Step 5: Commit**
 
