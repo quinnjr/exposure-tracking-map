@@ -44,7 +44,7 @@ export type SiteRecord = {
 
 export type RejectedRow = {
   semsSiteId: string;
-  reason: 'missing-identifier' | 'invalid-coordinate';
+  reason: 'missing-identifier' | 'invalid-coordinate' | 'duplicate-identifier';
 };
 
 const PROFILE_BASE =
@@ -98,7 +98,10 @@ export function normalizeSites(rows: RawSiteRow[]): {
       rejected.push({ semsSiteId: semsSiteId ?? '(unknown)', reason: 'missing-identifier' });
       continue;
     }
-    if (seen.has(semsSiteId)) continue;
+    if (seen.has(semsSiteId)) {
+      rejected.push({ semsSiteId, reason: 'duplicate-identifier' });
+      continue;
+    }
 
     const latitude = number(row.primary_latitude_decimal_val);
     const longitude = number(row.primary_longitude_decimal_val);

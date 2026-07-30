@@ -85,6 +85,7 @@ describe('normalizeSites', () => {
   it('preserves Guam coordinates', () => {
     const { records, rejected } = normalizeSites([GUAM]);
     expect(rejected).toHaveLength(0);
+    expect(records[0].latitude).toBeCloseTo(13.439169, 6);
     expect(records[0].longitude).toBeCloseTo(144.897361, 6);
     expect(records[0].federalFacility).toBe(true);
   });
@@ -107,9 +108,10 @@ describe('normalizeSites', () => {
     expect(records[0].zip).toBeNull();
   });
 
-  it('deduplicates repeated semsSiteId, keeping the first', () => {
-    const { records } = normalizeSites([LINEMASTER, { ...LINEMASTER, name: 'DUPLICATE' }]);
+  it('deduplicates repeated semsSiteId, keeping the first and recording the drop', () => {
+    const { records, rejected } = normalizeSites([LINEMASTER, { ...LINEMASTER, name: 'DUPLICATE' }]);
     expect(records).toHaveLength(1);
     expect(records[0].name).toBe('LINEMASTER SWITCH CORP.');
+    expect(rejected).toEqual([{ semsSiteId: '0100041', reason: 'duplicate-identifier' }]);
   });
 });
