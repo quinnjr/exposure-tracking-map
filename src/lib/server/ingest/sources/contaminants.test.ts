@@ -51,4 +51,16 @@ describe('fetchContaminantRows', () => {
     const fetchImpl = vi.fn(async () => new Response('x', { status: 500 })) as unknown as typeof fetch;
     await expect(fetchContaminantRows({ fetchImpl })).rejects.toThrow(/500/);
   });
+
+  it('throws instead of looping forever when every page comes back full', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify(page(CONTAMINANT_PAGE_SIZE)), { status: 200 })
+    ) as unknown as typeof fetch;
+
+    // Lower the ceiling so the test stays fast instead of issuing MAX_PAGES requests.
+    await expect(fetchContaminantRows({ fetchImpl, maxPages: 3 })).rejects.toThrow(
+      /exceeded 3 pages/
+    );
+    expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
+  });
 });

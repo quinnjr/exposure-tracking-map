@@ -65,7 +65,9 @@
     <p class="p-6 text-[13px] text-stone-500">Loading site details…</p>
   {:else if failed}
     <div class="p-6">
-      <p class="text-[13px] text-red-700">Could not load details for this site.</p>
+      <p class="text-[13px] font-semibold text-slate-900">
+        ⚠ Could not load details for this site.
+      </p>
       <button type="button" onclick={() => dialog.close()} class="mt-4 text-[13px] underline">
         Close
       </button>

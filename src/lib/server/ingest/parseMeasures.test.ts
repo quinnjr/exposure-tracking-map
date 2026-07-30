@@ -88,6 +88,21 @@ describe('parseMeasures', () => {
     expect(parseMeasures(html).humanExposureStatus).toBe('Yes');
   });
 
+  it('collapses generous internal/surrounding whitespace to an exact trimmed value', () => {
+    // statusColors.ts's MAPLIBRE_COLOR_EXPRESSION matches status strings literally
+    // and cannot call trim() — MapLibre's expression language has no such
+    // operator. Map pin colour correctness therefore depends entirely on
+    // cellText() (used here) collapsing whitespace before the value is ever
+    // persisted; exposureColor() in JS only trims defensively for the legend
+    // and list. This test pins that upstream invariant.
+    const html = `
+      <table><thead><tr><th>Performance Measure</th><th>Status</th><th>What does this mean?</th></tr></thead>
+      <tbody><tr><td>Human Exposure Under Control</td><td>
+          \n   Yes  \n
+        </td><td>legend</td></tr></tbody></table>`;
+    expect(parseMeasures(html).humanExposureStatus).toBe('Yes');
+  });
+
   it('returns nulls rather than throwing on empty or garbage input', () => {
     for (const input of ['', '<html></html>', 'not html at all']) {
       expect(parseMeasures(input).humanExposureStatus).toBeNull();

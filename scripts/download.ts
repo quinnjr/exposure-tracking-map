@@ -168,14 +168,38 @@ async function ingestMeasures(prisma: PrismaClient, args: Args): Promise<void> {
   });
 }
 
+const SOURCE_INGESTORS: Record<string, (prisma: PrismaClient, args: Args) => Promise<void>> = {
+  sites: ingestSites,
+  contaminants: ingestContaminants,
+  measures: ingestMeasures
+};
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const url = process.env.DATABASE_URL ?? 'file:./dev.db';
   const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
+  const succeeded: string[] = [];
+  const failed: string[] = [];
   try {
-    if (args.sources.includes('sites')) await ingestSites(prisma, args);
-    if (args.sources.includes('contaminants')) await ingestContaminants(prisma, args);
-    if (args.sources.includes('measures')) await ingestMeasures(prisma, args);
+    for (const source of args.sources) {
+      const ingest = SOURCE_INGESTORS[source];
+      try {
+        await ingest(prisma, args);
+        succeeded.push(source);
+      } catch (err) {
+        failed.push(source);
+        console.error(`[${source}] failed — continuing with remaining sources:`, err);
+      }
+    }
+
+    console.log(
+      `[download] summary: ${succeeded.length} succeeded (${succeeded.join(', ') || 'none'}), ` +
+        `${failed.length} failed (${failed.join(', ') || 'none'})`
+    );
+
+    if (failed.length > 0) {
+      process.exitCode = 1;
+    }
   } finally {
     await prisma.$disconnect();
   }

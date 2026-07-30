@@ -80,6 +80,20 @@ describe('normalizeContaminants', () => {
     expect(records[0].media).toBe('Free-phase NAPL');
   });
 
+  it('defaults a missing media_name to Other without dropping the row', () => {
+    const { records, skipped } = normalizeContaminants([row({ media_name: null })], known);
+    expect(skipped).toBe(0);
+    expect(records).toHaveLength(1);
+    expect(records[0].media).toBe('Other');
+  });
+
+  it('defaults a blank media_name to Other without dropping the row', () => {
+    const { records, skipped } = normalizeContaminants([row({ media_name: '   ' })], known);
+    expect(skipped).toBe(0);
+    expect(records).toHaveLength(1);
+    expect(records[0].media).toBe('Other');
+  });
+
   it('skips rows with no contaminant name', () => {
     const { records, skipped } = normalizeContaminants(
       [row({ preferred_contaminant_name: '  ' })],

@@ -44,7 +44,7 @@ export type SiteRecord = {
 
 export type RejectedRow = {
   semsSiteId: string;
-  reason: 'missing-identifier' | 'invalid-coordinate' | 'duplicate-identifier';
+  reason: 'missing-identifier' | 'invalid-coordinate' | 'duplicate-identifier' | 'missing-status';
 };
 
 const PROFILE_BASE =
@@ -110,6 +110,13 @@ export function normalizeSites(rows: RawSiteRow[]): {
       continue;
     }
 
+    const nplStatusCode = text(row.npl_status_code);
+    const nplStatusName = text(row.npl_status_name);
+    if (!nplStatusCode || !nplStatusName) {
+      rejected.push({ semsSiteId, reason: 'missing-status' });
+      continue;
+    }
+
     seen.add(semsSiteId);
     records.push({
       semsSiteId,
@@ -126,8 +133,8 @@ export function normalizeSites(rows: RawSiteRow[]): {
       epaRegion: text(row.fk_ref_region_code),
       latitude,
       longitude,
-      nplStatusCode: text(row.npl_status_code) ?? 'F',
-      nplStatusName: text(row.npl_status_name) ?? 'Unknown',
+      nplStatusCode,
+      nplStatusName,
       federalFacility: isYes(row.federal_facility_ind),
       archived: isYes(row.archived_ind),
       profileUrl: profileUrlFor(semsSiteId)
@@ -162,22 +169,41 @@ export type ContaminantRecord = {
 export function normalizeContaminants(
   rows: RawContaminantRow[],
   knownSiteIds: Set<string>
-): { records: ContaminantRecord[]; skipped: number } {
+): { records: ContaminantRecord[]; skipped: number; missingMedia: number } {
   const byKey = new Map<string, ContaminantRecord>();
   let skipped = 0;
+  let missingMedia = 0;
 
   for (const row of rows) {
     const semsSiteId = text(row.fk_site_id);
     const name = text(row.preferred_contaminant_name)?.toUpperCase() ?? null;
-    const media = text(row.media_name) ?? 'Other';
+    const rawMedia = text(row.media_name);
+    const media = rawMedia ?? 'Other';
 
     if (!semsSiteId || !name || !knownSiteIds.has(semsSiteId)) {
       skipped += 1;
       continue;
     }
 
+    if (!rawMedia) {
+      missingMedia += 1;
+      // Log only the first occurrence to avoid flooding output on the 72,569-row
+      // contaminants feed; the remaining count is tallied and logged once below.
+      if (missingMedia === 1) {
+        console.warn(
+          `normalizeContaminants: missing media_name for site ${semsSiteId}, contaminant ${name}; defaulting to 'Other'`
+        );
+      }
+    }
+
     byKey.set(`${semsSiteId}|${name}|${media}`, { semsSiteId, name, media });
   }
 
-  return { records: [...byKey.values()], skipped };
+  if (missingMedia > 1) {
+    console.warn(
+      `normalizeContaminants: ${missingMedia} rows had missing media_name (defaulted to 'Other'); only the first was logged individually`
+    );
+  }
+
+  return { records: [...byKey.values()], skipped, missingMedia };
 }

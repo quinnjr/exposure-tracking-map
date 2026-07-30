@@ -108,6 +108,20 @@ describe('normalizeSites', () => {
     expect(records[0].zip).toBeNull();
   });
 
+  it('rejects rows missing npl_status_code', () => {
+    const bad = { ...LINEMASTER, npl_status_code: null };
+    const { records, rejected } = normalizeSites([bad]);
+    expect(records).toHaveLength(0);
+    expect(rejected).toEqual([{ semsSiteId: '0100041', reason: 'missing-status' }]);
+  });
+
+  it('rejects rows missing npl_status_name', () => {
+    const bad = { ...LINEMASTER, npl_status_name: null };
+    const { records, rejected } = normalizeSites([bad]);
+    expect(records).toHaveLength(0);
+    expect(rejected).toEqual([{ semsSiteId: '0100041', reason: 'missing-status' }]);
+  });
+
   it('deduplicates repeated semsSiteId, keeping the first and recording the drop', () => {
     const { records, rejected } = normalizeSites([LINEMASTER, { ...LINEMASTER, name: 'DUPLICATE' }]);
     expect(records).toHaveLength(1);

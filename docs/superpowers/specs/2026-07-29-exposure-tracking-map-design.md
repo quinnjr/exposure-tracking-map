@@ -203,7 +203,12 @@ src/lib/components/
 Each unit has one purpose and a narrow interface. `haversine.ts`, `bbox.ts`, `parseMeasures.ts`,
 and `normalize.ts` are pure and carry the bulk of the test weight. `Map.svelte` wraps MapLibre and
 emits events; it does not fetch or rank. `proximity.ts` takes a point, a radius, and a candidate
-array — it does not touch Prisma.
+array — it does not touch Prisma. `+page.svelte` owns search and pin-load state (it is the page
+that fetches `/api/sites` and `/api/search`); `SiteDialog` is the one exception to "only the page
+fetches" — it owns its own detail/loading/failed state and fetches `/api/sites/[epaId]` itself,
+inside an effect keyed on the selected `epaId`. That is safe because the effect guards against a
+stale response overwriting a newer selection (a `cancelled` flag set when the prop changes before
+the fetch resolves), and it surfaces the failure case visibly rather than swallowing it.
 
 ## Data model
 

@@ -53,7 +53,10 @@ Human Exposure indicator, so it has to be scraped one page at a time.
 Flags:
 
 - `--refresh` bypasses the on-disk cache and re-fetches from upstream.
-- `--dry-run` reports what would be fetched/written without writing anything.
+- `--dry-run` means different things per source: for `sites` and `contaminants` it performs the
+  real fetch and normalisation and reports actual counts, then skips the write; for `measures` it
+  fetches nothing at all and only prints a duration estimate (a real dry run of a ~2-hour scrape
+  would defeat the purpose).
 - `--source=sites|contaminants|measures` runs a single source instead of all three.
 - `--limit=N` caps how many sites the measures scrape visits, useful for a quick smoke test.
 

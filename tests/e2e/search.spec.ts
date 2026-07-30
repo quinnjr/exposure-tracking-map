@@ -81,6 +81,46 @@ test.describe('exposure tracking map', () => {
     await expect(page.getByTestId('result-row')).toHaveCount(0);
   });
 
+  test('shows retryable copy, distinct from the 422 message, on a 503 geocoder outage', async ({
+    page
+  }) => {
+    await page.route('**/api/search', async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          message: 'The address lookup service is unavailable. Please try again.'
+        })
+      });
+    });
+
+    await page.goto('/');
+    await page.getByLabel('Street address, city, and state').fill(
+      '1600 Pennsylvania Avenue NW, Washington, DC 20500'
+    );
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const unavailableMessage = page.getByText(/unavailable.*try again/i);
+    await expect(unavailableMessage).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/couldn't find that address/i)).not.toBeVisible();
+    await expect(page.getByTestId('result-row')).toHaveCount(0);
+  });
+
+  test('shows a generic unreachable-server message on a network failure', async ({ page }) => {
+    await page.route('**/api/search', (route) => route.abort());
+
+    await page.goto('/');
+    await page.getByLabel('Street address, city, and state').fill(
+      '1600 Pennsylvania Avenue NW, Washington, DC 20500'
+    );
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    await expect(page.getByText(/could not reach the server/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/unavailable.*try again/i)).not.toBeVisible();
+    await expect(page.getByText(/couldn't find that address/i)).not.toBeVisible();
+    await expect(page.getByTestId('result-row')).toHaveCount(0);
+  });
+
   test('results list rows are keyboard reachable', async ({ page }) => {
     await page.goto('/');
     await page.getByLabel('Street address, city, and state').fill(

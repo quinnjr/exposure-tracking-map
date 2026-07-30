@@ -31,7 +31,7 @@
     {#if loading}
       <p class="text-[13px] text-stone-500">Looking up that address…</p>
     {:else if errorMessage}
-      <p class="text-[13px] text-red-700">{errorMessage}</p>
+      <p class="text-[13px] font-semibold text-slate-900">⚠ {errorMessage}</p>
     {:else if response}
       <p class="text-[15px] font-semibold text-stone-900">{heading}</p>
       <p class="mt-0.5 text-[12px] text-stone-500">

@@ -33,6 +33,7 @@
   let container: HTMLDivElement;
   let map: MapLibreMap | null = null;
   let ready = $state(false);
+  let mapFailed = $state(false);
 
   function addLayers(m: MapLibreMap): void {
     m.addSource('sites', {
@@ -135,7 +136,15 @@
       attributionControl: { compact: true }
     });
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-    m.on('error', (e) => console.warn('[map]', e.error));
+    m.on('error', (e) => {
+      console.warn('[map]', e.error);
+      // A single tile 404 (or similarly scoped failure) fires 'error' on an
+      // otherwise-working map, so only treat this as a fatal load failure if
+      // the style itself never finished loading (`load` hasn't fired yet, so
+      // `ready` is still false). Once `ready` is true, later errors are
+      // assumed to be non-fatal (e.g. a missing tile) and are just logged.
+      if (!ready) mapFailed = true;
+    });
     m.on('load', () => {
       addLayers(m);
       map = m;
@@ -203,5 +212,13 @@
 <div class="relative size-full">
   <!-- The canvas is not screen-reader navigable; ResultsList is the accessible path. -->
   <div bind:this={container} aria-hidden="true" class="size-full" data-testid="map"></div>
+  {#if mapFailed}
+    <div
+      data-testid="map-failed"
+      class="absolute inset-x-0 top-0 m-3 rounded border border-stone-300 bg-white/95 px-3 py-2 text-[13px] font-semibold text-slate-900 shadow-sm"
+    >
+      ⚠ Map couldn't load. The results list still works.
+    </div>
+  {/if}
   <Legend />
 </div>

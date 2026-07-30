@@ -11,14 +11,24 @@ export async function upsertSites(
   prisma: PrismaClient,
   records: SiteRecord[]
 ): Promise<number> {
+  if (records.length === 0) return 0;
+
   let count = 0;
-  for (const r of records) {
-    await prisma.site.upsert({
-      where: { semsSiteId: r.semsSiteId },
-      create: r,
-      update: r
-    });
-    count += 1;
+  for (let i = 0; i < records.length; i += WRITE_BATCH_SIZE) {
+    const batch = records.slice(i, i + WRITE_BATCH_SIZE);
+    await prisma.$transaction(
+      async (tx) => {
+        for (const r of batch) {
+          await tx.site.upsert({
+            where: { semsSiteId: r.semsSiteId },
+            create: r,
+            update: r
+          });
+          count += 1;
+        }
+      },
+      { timeout: 120_000 }
+    );
   }
   return count;
 }
