@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { normalizeQuery } from '../src/lib/server/geocode';
 
 /**
  * Deterministic dataset for the E2E test. Three sites near the White House at
@@ -81,6 +82,29 @@ export async function seedFixture(prisma: PrismaClient): Promise<void> {
       humanExposureStatus: 'No',
       profileUrl: 'https://example.invalid/guam'
     }
+  });
+
+  // Seed the geocode cache for the addresses the E2E specs use, so
+  // geocode()'s read-through cache short-circuits before any real network
+  // call to the Census geocoder. The unmatchable-address spec is
+  // deliberately left uncached — it needs a genuine 422 from Census.
+  await prisma.geocodeCache.createMany({
+    data: [
+      {
+        normalizedQuery: normalizeQuery('1600 Pennsylvania Avenue NW, Washington, DC 20500'),
+        latitude: 38.89869893252,
+        longitude: -77.03518753691,
+        matchedAddress: '1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500',
+        provider: 'census'
+      },
+      {
+        normalizedQuery: normalizeQuery('100 2nd Avenue, Glasgow, MT 59230'),
+        latitude: 48.196391010976,
+        longitude: -106.629014100759,
+        matchedAddress: '100 2ND AVE N, GLASGOW, MT, 59230',
+        provider: 'census'
+      }
+    ]
   });
 
   const tce = await prisma.contaminant.create({ data: { name: 'TRICHLOROETHENE' } });

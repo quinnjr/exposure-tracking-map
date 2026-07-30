@@ -2,6 +2,7 @@
 <script lang="ts">
   import { circlePolygon } from '$lib/geo/circle';
   import type { LatLng } from '$lib/geo/types';
+  import { DEFAULT_RADIUS_MILES } from '$lib/radius';
   import { MAPLIBRE_COLOR_EXPRESSION } from '$lib/statusColors';
   import type { SiteFeatureCollection } from '$lib/types';
   import * as maplibregl from 'maplibre-gl';
@@ -19,7 +20,7 @@
   let {
     features,
     searchPoint = null,
-    radiusMiles = 25,
+    radiusMiles = DEFAULT_RADIUS_MILES,
     selectedEpaId = null,
     onSelect
   }: Props = $props();
@@ -134,6 +135,7 @@
       attributionControl: { compact: true }
     });
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    m.on('error', (e) => console.warn('[map]', e.error));
     m.on('load', () => {
       addLayers(m);
       map = m;

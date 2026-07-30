@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '../../../../tests/prisma-test-client';
 import type { SiteRecord } from './normalize';
@@ -104,5 +105,60 @@ describe('withIngestRun', () => {
     expect(run.status).toBe('failed');
     expect(run.error).toContain('upstream exploded');
     expect(run.finishedAt).not.toBeNull();
+  });
+
+  it('propagates the original error even when the audit write also fails', async () => {
+    let updateCalls = 0;
+    // Simulate the observed P1008 case: the failure IS the database, so the
+    // catch block's own audit write throws too. The original error must
+    // still win, not the audit-write error.
+    const failingPrisma = {
+      ...db.prisma,
+      ingestRun: {
+        ...db.prisma.ingestRun,
+        update: async () => {
+          updateCalls += 1;
+          throw new Error('P1008: socket died');
+        }
+      }
+    } as unknown as PrismaClient;
+
+    await expect(
+      withIngestRun(failingPrisma, 'measures', async () => {
+        throw new Error('upstream exploded');
+      })
+    ).rejects.toThrow('upstream exploded');
+
+    expect(updateCalls).toBe(1);
+  });
+
+  it('reconciles a stale running row as failed before starting a new one', async () => {
+    const staleStartedAt = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2h ago
+    const stale = await db.prisma.ingestRun.create({
+      data: { source: 'measures', status: 'running', startedAt: staleStartedAt }
+    });
+    const recent = await db.prisma.ingestRun.create({
+      data: { source: 'measures', status: 'running', startedAt: new Date() }
+    });
+
+    await withIngestRun(db.prisma, 'measures', async () => ({
+      upserted: 1,
+      rejected: 0,
+      value: 'ok'
+    }));
+
+    const reconciledStale = await db.prisma.ingestRun.findUniqueOrThrow({
+      where: { id: stale.id }
+    });
+    expect(reconciledStale.status).toBe('failed');
+    expect(reconciledStale.error).toContain('abandoned');
+    expect(reconciledStale.finishedAt).not.toBeNull();
+
+    // A recent `running` row for the same source is left alone — it might
+    // be a genuinely concurrent run, not an abandoned one.
+    const untouchedRecent = await db.prisma.ingestRun.findUniqueOrThrow({
+      where: { id: recent.id }
+    });
+    expect(untouchedRecent.status).toBe('running');
   });
 });

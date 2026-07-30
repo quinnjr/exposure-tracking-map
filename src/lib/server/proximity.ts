@@ -23,13 +23,24 @@ export function rankByDistance<T extends LatLng>(center: LatLng, candidates: T[]
 /**
  * Exact radius filter. Applied after the bounding-box prefilter, which
  * over-selects by design.
+ *
+ * Filters on the RAW (unrounded) distance, not the rounded `distanceMiles`
+ * used for display. Rounding first would admit candidates up to `miles +
+ * 0.049` (rounding is an absolute tolerance), which is wider than the
+ * relative margin `boundingBox` applies at most radii — the box could then
+ * under-select relative to this filter, silently dropping real results. See
+ * `src/lib/geo/bbox.ts`'s doc comment for the invariant this preserves.
  */
 export function withinRadius<T extends LatLng>(
   center: LatLng,
   candidates: T[],
   miles: number
 ): Ranked<T>[] {
-  return rankByDistance(center, candidates).filter((c) => c.distanceMiles <= miles);
+  return candidates
+    .map((c) => ({ candidate: c, raw: haversineMiles(center, c) }))
+    .filter((x) => x.raw <= miles)
+    .sort((a, b) => a.raw - b.raw)
+    .map((x) => ({ ...x.candidate, distanceMiles: Math.round(x.raw * 10) / 10 }));
 }
 
 /** The `count` closest candidates, ignoring any radius. */

@@ -26,6 +26,32 @@ export async function upsertSites(
 export type IngestOutcome<T> = { upserted: number; rejected: number; value: T };
 
 /**
+ * A `running` IngestRun older than this is assumed abandoned (e.g. the
+ * process died mid-run, or the write that would have marked it
+ * failed/success itself failed against a dead database) and gets
+ * reconciled to `failed` at the start of the next run for the same source.
+ */
+const STALE_RUN_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Mark any `running` IngestRun for `source` older than STALE_RUN_THRESHOLD_MS
+ * as `failed`. Called at the start of every `withIngestRun` so an orphaned
+ * row (left behind when a previous run crashed hard enough that even the
+ * catch-block audit write failed) doesn't sit as `running` forever.
+ */
+async function reconcileStaleRuns(prisma: PrismaClient, source: string): Promise<void> {
+  const staleBefore = new Date(Date.now() - STALE_RUN_THRESHOLD_MS);
+  await prisma.ingestRun.updateMany({
+    where: { source, status: 'running', startedAt: { lt: staleBefore } },
+    data: {
+      status: 'failed',
+      finishedAt: new Date(),
+      error: `Reconciled as abandoned: still 'running' after more than ${STALE_RUN_THRESHOLD_MS / 60000} minutes.`
+    }
+  });
+}
+
+/**
  * Wrap one ingest source in an IngestRun audit row. A thrown error is
  * recorded and rethrown, so a failing source marks only its own run failed
  * and leaves data from other sources intact.
@@ -35,6 +61,8 @@ export async function withIngestRun<T>(
   source: string,
   fn: () => Promise<IngestOutcome<T>>
 ): Promise<T> {
+  await reconcileStaleRuns(prisma, source);
+
   const run = await prisma.ingestRun.create({ data: { source, status: 'running' } });
   try {
     const { upserted, rejected, value } = await fn();
@@ -49,15 +77,19 @@ export async function withIngestRun<T>(
     });
     return value;
   } catch (err) {
-    await prisma.ingestRun.update({
-      where: { id: run.id },
-      data: {
-        status: 'failed',
-        finishedAt: new Date(),
-        error: err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err)
-      }
-    });
-    throw err;
+    try {
+      await prisma.ingestRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'failed',
+          finishedAt: new Date(),
+          error: err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err)
+        }
+      });
+    } catch (auditErr) {
+      console.error(`[ingest] could not record failure for run ${run.id}:`, auditErr);
+    }
+    throw err; // always rethrow the ORIGINAL error
   }
 }
 

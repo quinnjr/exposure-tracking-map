@@ -22,7 +22,11 @@
   onMount(async () => {
     try {
       const res = await fetch('/api/sites');
-      if (res.ok) features = await res.json();
+      if (res.ok) {
+        features = await res.json();
+      } else {
+        errorMessage = 'Could not load the Superfund site map.';
+      }
     } catch {
       errorMessage = 'Could not load the Superfund site map.';
     }

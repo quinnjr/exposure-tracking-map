@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { boundingBox } from '$lib/geo/bbox';
 import { EARTH_RADIUS_MILES, haversineMiles } from '$lib/geo/haversine';
 import {
   DEFAULT_RADIUS_MILES,
@@ -85,6 +86,66 @@ describe('withinRadius', () => {
     const justOutside = site('just-outside', CENTER.latitude + 25.1 / MILES_PER_DEGREE_LAT, CENTER.longitude);
     expect(haversineMiles(CENTER, justOutside)).toBeGreaterThan(25);
     expect(withinRadius(CENTER, [justOutside], 25)).toHaveLength(0);
+  });
+
+  it('the box never excludes a candidate withinRadius would accept (bbox seam)', () => {
+    // Real search.ts flow: boundingBox() narrows candidates, THEN
+    // withinRadius() applies the exact filter. The box's doc comment
+    // requires it to never under-select relative to that exact filter — if
+    // it did, a real result would be silently dropped before withinRadius
+    // ever sees it.
+    //
+    // Build a dense ring of candidates around the radius boundary, in every
+    // cardinal and intercardinal direction (longitude narrows with
+    // latitude, so direction matters), and confirm every candidate
+    // withinRadius would accept survives the box prefilter first.
+    const radius = 25;
+    const box = boundingBox(CENTER, radius);
+
+    const insideBox = (p: { latitude: number; longitude: number }): boolean =>
+      p.latitude >= box.minLatitude &&
+      p.latitude <= box.maxLatitude &&
+      p.longitude >= box.minLongitude &&
+      p.longitude <= box.maxLongitude;
+
+    const directions = [0, 45, 90, 135, 180, 225, 270, 315]; // degrees from north
+    const offsets = [-0.5, -0.1, -0.02, -0.005, 0, 0.005, 0.02, 0.049, 0.05, 0.1];
+
+    const candidates = directions.flatMap((bearingDeg) =>
+      offsets.map((offset) => {
+        const distance = radius + offset;
+        const bearing = (bearingDeg * Math.PI) / 180;
+        const dLat = ((distance * Math.cos(bearing)) / MILES_PER_DEGREE_LAT);
+        const milesPerDegreeLonHere =
+          MILES_PER_DEGREE_LAT * Math.cos((CENTER.latitude * Math.PI) / 180);
+        const dLon = (distance * Math.sin(bearing)) / milesPerDegreeLonHere;
+        return site(
+          `${bearingDeg}-${offset}`,
+          CENTER.latitude + dLat,
+          CENTER.longitude + dLon
+        );
+      })
+    );
+
+    // What withinRadius would accept if given every candidate directly
+    // (no box prefilter at all) — the ground truth for "should be included".
+    const acceptedDirectly = new Set(
+      withinRadius(CENTER, candidates, radius).map((c) => c.name)
+    );
+
+    for (const c of candidates) {
+      if (acceptedDirectly.has(c.name)) {
+        expect(insideBox(c), `box must contain accepted candidate ${c.name}`).toBe(true);
+      }
+    }
+
+    // And once box-filtered, withinRadius must still yield exactly the same
+    // accepted set (the box only over-selects, never changes the answer).
+    const boxFiltered = candidates.filter(insideBox);
+    const acceptedAfterBox = new Set(
+      withinRadius(CENTER, boxFiltered, radius).map((c) => c.name)
+    );
+    expect(acceptedAfterBox).toEqual(acceptedDirectly);
   });
 });
 
