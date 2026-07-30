@@ -26,12 +26,12 @@ export async function upsertSites(
 export type IngestOutcome<T> = { upserted: number; rejected: number; value: T };
 
 /**
- * A `running` IngestRun older than this is assumed abandoned (e.g. the
- * process died mid-run, or the write that would have marked it
- * failed/success itself failed against a dead database) and gets
- * reconciled to `failed` at the start of the next run for the same source.
+ * How long an IngestRun may sit at `running` before the next run for the same
+ * source treats it as abandoned. This MUST exceed the longest legitimate run:
+ * a full measures pass is ~2 hours (1,840 sites at ~3.75 s each), so a shorter
+ * threshold would reconcile a healthy in-progress run to `failed`.
  */
-const STALE_RUN_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
+export const STALE_RUN_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 /**
  * Mark any `running` IngestRun for `source` older than STALE_RUN_THRESHOLD_MS

@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '../../../../tests/prisma-test-client';
 import type { SiteRecord } from './normalize';
-import { upsertSites, withIngestRun } from './upsert';
+import { STALE_RUN_THRESHOLD_MS, upsertSites, withIngestRun } from './upsert';
 
 let db: TestDatabase;
 
@@ -133,12 +133,17 @@ describe('withIngestRun', () => {
   });
 
   it('reconciles a stale running row as failed before starting a new one', async () => {
-    const staleStartedAt = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2h ago
+    // Derived from the constant itself so this test can never drift out of
+    // sync with it: comfortably past the threshold for "stale", and
+    // comfortably inside it (a plausible still-legitimate long run) for
+    // "recent".
+    const staleStartedAt = new Date(Date.now() - (STALE_RUN_THRESHOLD_MS + 60_000));
+    const recentStartedAt = new Date(Date.now() - (STALE_RUN_THRESHOLD_MS - 60_000));
     const stale = await db.prisma.ingestRun.create({
       data: { source: 'measures', status: 'running', startedAt: staleStartedAt }
     });
     const recent = await db.prisma.ingestRun.create({
-      data: { source: 'measures', status: 'running', startedAt: new Date() }
+      data: { source: 'measures', status: 'running', startedAt: recentStartedAt }
     });
 
     await withIngestRun(db.prisma, 'measures', async () => ({
