@@ -11,3 +11,7 @@ dev.db-shm
 test-results/
 playwright-report/
 .env
+e2e.db
+e2e.db-journal
+e2e.db-wal
+e2e.db-shm

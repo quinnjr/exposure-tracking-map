@@ -3,6 +3,7 @@
   import AddressSearch from '$lib/components/AddressSearch.svelte';
   import Map from '$lib/components/Map.svelte';
   import ResultsList from '$lib/components/ResultsList.svelte';
+  import SiteDialog from '$lib/components/SiteDialog.svelte';
   import { DEFAULT_RADIUS_MILES } from '$lib/radius';
   import type { SearchResponse, SiteFeatureCollection } from '$lib/types';
   import { onMount } from 'svelte';
@@ -14,6 +15,9 @@
   let selectedEpaId = $state<string | null>(null);
   let loading = $state(false);
   let errorMessage = $state<string | null>(null);
+  let selectedDistance = $derived(
+    response?.results.find((r) => r.epaId === selectedEpaId)?.distanceMiles ?? null
+  );
 
   onMount(async () => {
     try {
@@ -86,4 +90,10 @@
       />
     </div>
   </main>
+
+  <SiteDialog
+    epaId={selectedEpaId}
+    distanceMiles={selectedDistance}
+    onClose={() => (selectedEpaId = null)}
+  />
 </div>
