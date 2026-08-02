@@ -1,5 +1,6 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
+  import { type AddressParts, EMPTY_ADDRESS } from '$lib/address';
   import AddressSearch from '$lib/components/AddressSearch.svelte';
   import Map from '$lib/components/Map.svelte';
   import ResultsList from '$lib/components/ResultsList.svelte';
@@ -9,7 +10,7 @@
   import { onMount } from 'svelte';
 
   let features = $state<SiteFeatureCollection>({ type: 'FeatureCollection', features: [] });
-  let address = $state('');
+  let addressParts = $state<AddressParts>({ ...EMPTY_ADDRESS });
   let radiusMiles = $state<number>(DEFAULT_RADIUS_MILES);
   let response = $state<SearchResponse | null>(null);
   let selectedEpaId = $state<string | null>(null);
@@ -69,21 +70,29 @@
 <div class="flex h-screen flex-col bg-stone-50 text-stone-900">
   <header class="flex flex-wrap items-center gap-4 border-b border-stone-200 bg-white px-4 py-3">
     <h1 class="text-[15px] font-semibold tracking-tight">Exposure Tracking Map</h1>
-    <div class="flex-1">
-      <AddressSearch bind:address bind:radiusMiles {loading} onSubmit={search} />
-    </div>
   </header>
 
   <main class="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
-    <div class="h-1/2 md:h-auto md:w-80 md:shrink-0">
-      <ResultsList
-        {response}
-        {loading}
-        {errorMessage}
-        {selectedEpaId}
-        onSelect={(id) => (selectedEpaId = id)}
-      />
-    </div>
+    <!-- Left rail: the lookup form sits above the results it produces, so the
+         input and its output share one column and the map keeps the full width
+         it needs. The rail scrolls as a unit on short viewports. -->
+    <nav
+      aria-label="Site lookup"
+      class="flex h-1/2 flex-col overflow-y-auto border-stone-200 bg-white md:h-auto md:w-80 md:shrink-0 md:border-r"
+    >
+      <div class="border-b border-stone-200 p-4">
+        <AddressSearch bind:parts={addressParts} bind:radiusMiles {loading} onSubmit={search} />
+      </div>
+      <div class="min-h-0 flex-1">
+        <ResultsList
+          {response}
+          {loading}
+          {errorMessage}
+          {selectedEpaId}
+          onSelect={(id) => (selectedEpaId = id)}
+        />
+      </div>
+    </nav>
     <div class="min-h-0 flex-1">
       <Map
         {features}
