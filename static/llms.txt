@@ -1,0 +1,42 @@
+# Exposure Tracking Map
+
+> Find US Superfund sites near any address, with their contaminants of concern
+> and the EPA's human-exposure determination for each.
+
+Data covers the 1,840 sites on the EPA National Priorities List (NPL), sourced
+from the EPA Superfund Enterprise Management System (SEMS) via the Envirofacts
+API and the public site-profile pages. Geocoding uses the US Census Bureau
+geocoder. Distances are great-circle (haversine) from the searched address.
+
+## Reading the exposure status
+
+The `Human exposure under control` field is an EPA environmental indicator, and
+its values are easy to misread:
+
+- `Yes` — the EPA has determined that human exposure is under control.
+- `No` — the EPA has NOT made that determination. This does not mean exposure
+  is confirmed; it means control has not been demonstrated.
+- `Insufficient Data` — the EPA lacks the data to determine either way.
+- absent — no determination has been published for that site.
+
+"No" is not a statement that a site is safe, and it is the value most often
+reported backwards. Roughly 10% of sites have no published determination at all,
+because their EPA profile page carries no measures table.
+
+## Key pages
+
+- [Map and address search](https://parkinsons.quinnjr.dev/): enter any US
+  address to list Superfund sites within a chosen radius, nearest first.
+- [All sites by state](https://parkinsons.quinnjr.dev/sites): hub page linking
+  every state and territory that has NPL sites.
+- [Per-state listings](https://parkinsons.quinnjr.dev/states/ct): e.g. `/states/ct`.
+- [Per-site pages](https://parkinsons.quinnjr.dev/sites/CTD001153923): one page
+  per site, keyed by EPA ID, with location, NPL status, all four EPA
+  environmental indicators, and contaminants grouped by medium.
+- [Sitemap](https://parkinsons.quinnjr.dev/sitemap.xml)
+
+## Attribution
+
+Underlying data is US EPA public-domain material. This site is an independent
+presentation of it and is not affiliated with or endorsed by the EPA. Always
+check the linked official EPA site profile for the authoritative record.

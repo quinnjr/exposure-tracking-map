@@ -1,0 +1,29 @@
+# Everything here is public EPA data and all of it is meant to be indexed.
+User-agent: *
+Allow: /
+
+# The GeoJSON pin payload is ~550 KB and is data for the map, not a document.
+# Crawling it wastes budget that should go to the 1,840 site pages instead.
+Disallow: /api/
+
+# Answer engines are explicitly welcome: the per-site pages exist so that
+# questions about a specific Superfund site can be answered accurately and
+# with attribution, rather than guessed at.
+User-agent: GPTBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: Claude-Web
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: Applebot-Extended
+Allow: /
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://parkinsons.quinnjr.dev/sitemap.xml

@@ -95,3 +95,68 @@ export async function siteDetail(
     contaminantsByMedium
   };
 }
+
+/**
+ * Every site reduced to what a sitemap entry needs. Kept separate from
+ * sitesGeoJson because the sitemap is requested by crawlers, often, and has no
+ * use for coordinates or contaminants — this selects three columns instead of
+ * nine.
+ *
+ * `measuresFetchedAt` stands in for a modified date: the site's own facts come
+ * from EPA and carry no timestamp, so the last time this row's exposure
+ * measures were scraped is the closest honest answer. It is null for the ~10%
+ * of sites whose profile page never yielded a measures table, and those get no
+ * <lastmod> rather than a fabricated one.
+ */
+export async function siteSitemapEntries(
+  prisma: PrismaClient
+): Promise<Array<{ epaId: string; state: string; measuresFetchedAt: Date | null }>> {
+  return prisma.site.findMany({
+    select: { epaId: true, state: true, measuresFetchedAt: true },
+    orderBy: { epaId: 'asc' }
+  });
+}
+
+/** One row per state, for the state index and its long-tail landing pages. */
+export async function stateSummaries(
+  prisma: PrismaClient
+): Promise<Array<{ state: string; siteCount: number }>> {
+  const grouped = await prisma.site.groupBy({
+    by: ['state'],
+    _count: { _all: true },
+    orderBy: { state: 'asc' }
+  });
+  return grouped.map((g) => ({ state: g.state, siteCount: g._count._all }));
+}
+
+/**
+ * Sites in one state, ordered for human reading rather than by id. Powers the
+ * `/states/[state]` pages, which exist so that "superfund sites in Connecticut"
+ * has something to match — the map alone is a single URL and answers nothing.
+ */
+export async function sitesInState(
+  prisma: PrismaClient,
+  state: string
+): Promise<
+  Array<{
+    epaId: string;
+    name: string;
+    city: string | null;
+    county: string | null;
+    nplStatusName: string;
+    humanExposureStatus: string | null;
+  }>
+> {
+  return prisma.site.findMany({
+    where: { state },
+    select: {
+      epaId: true,
+      name: true,
+      city: true,
+      county: true,
+      nplStatusName: true,
+      humanExposureStatus: true
+    },
+    orderBy: [{ city: 'asc' }, { name: 'asc' }]
+  });
+}

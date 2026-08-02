@@ -7,13 +7,19 @@
   import SiteDialog from '$lib/components/SiteDialog.svelte';
   import { DEFAULT_RADIUS_MILES } from '$lib/radius';
   import type { SearchResponse, SiteFeatureCollection } from '$lib/types';
+  import { resolve } from '$app/paths';
+  import { page } from '$app/state';
+  import Seo from '$lib/components/Seo.svelte';
+  import { absoluteUrl, datasetJsonLd, websiteJsonLd } from '$lib/seo';
   import { onMount } from 'svelte';
 
   let features = $state<SiteFeatureCollection>({ type: 'FeatureCollection', features: [] });
   let addressParts = $state<AddressParts>({ ...EMPTY_ADDRESS });
   let radiusMiles = $state<number>(DEFAULT_RADIUS_MILES);
   let response = $state<SearchResponse | null>(null);
-  let selectedEpaId = $state<string | null>(null);
+  // Honours /?site=EPAID so the crawlable per-site pages can link back into
+  // the map at the right pin, rather than dumping the visitor at a US-wide view.
+  let selectedEpaId = $state<string | null>(page.url.searchParams.get('site'));
   let loading = $state(false);
   let errorMessage = $state<string | null>(null);
   let selectedDistance = $derived(
@@ -59,17 +65,32 @@
   }
 </script>
 
-<svelte:head>
-  <title>Exposure Tracking Map — US Superfund sites near an address</title>
-  <meta
-    name="description"
-    content="Find EPA National Priorities List Superfund sites near any US address, with contaminants of concern and human-exposure status."
-  />
-</svelte:head>
+<Seo
+  title="Exposure Tracking Map — US Superfund sites near any address"
+  description="Find EPA National Priorities List Superfund sites near any US address. See contaminants of concern and whether the EPA has determined human exposure is under control at each of the 1,840 sites."
+  canonical={absoluteUrl(page.url.origin, '/')}
+  jsonLd={[
+    websiteJsonLd(page.url.origin),
+    datasetJsonLd(page.url.origin, features.features.length || 1840),
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      name: 'Exposure Tracking Map',
+      url: page.url.origin,
+      applicationCategory: 'ReferenceApplication',
+      operatingSystem: 'Any',
+      browserRequirements: 'Requires JavaScript for the interactive map; all site data is also available as pages under /sites.',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
+    }
+  ]}
+/>
 
 <div class="flex h-screen flex-col bg-stone-50 text-stone-900">
   <header class="flex flex-wrap items-center gap-4 border-b border-stone-200 bg-white px-4 py-3">
     <h1 class="text-[15px] font-semibold tracking-tight">Exposure Tracking Map</h1>
+    <!-- Load-bearing for SEO, not decoration: the map is a canvas, so this is
+         the only crawlable path from the home page into the per-site pages. -->
+    <a class="text-[13px] text-stone-600 underline" href={resolve('/sites')}>Browse all sites by state</a>
   </header>
 
   <main class="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
