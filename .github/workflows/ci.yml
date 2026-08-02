@@ -38,9 +38,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Must precede check/test: the SvelteKit server routes import
-      # @prisma/client, and `migrate deploy` does NOT generate under Prisma 7 —
-      # only `migrate dev` does.
       # svelte-kit sync generates .svelte-kit/tsconfig.json, which tsconfig.json
       # extends. Run explicitly rather than trusting the `prepare` lifecycle
       # hook: verified that pnpm does NOT fire `prepare` on a fresh
@@ -48,6 +45,9 @@ jobs:
       # checkout with "Cannot read file .svelte-kit/tsconfig.json".
       - run: pnpm exec svelte-kit sync
 
+      # Must precede check/test/build: the SvelteKit server routes import
+      # @prisma/client, and `migrate deploy` does NOT generate under Prisma 7 —
+      # only `migrate dev` does.
       - run: pnpm exec prisma generate
 
       # This is the step that guards the TypeScript pin. `typescript` is held at
