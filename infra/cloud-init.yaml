@@ -178,7 +178,7 @@ write_files:
 runcmd:
   # --- Swap ----------------------------------------------------------------
   # 1 GB is comfortable for steady state but still tight during a `docker pull`
-  # that decompresses a ~260 MB image while the app is running. Swap absorbs
+  # that decompresses a ~210 MB image while the app is running. Swap absorbs
   # that spike instead of the OOM killer picking the largest RSS, which is the
   # app. 2 GB on a 25 GB disk; swappiness stays low so this is a safety net
   # rather than a routine path.

@@ -156,7 +156,7 @@ shared means a time slice rather than a dedicated core. RAM is what actually
 binds this workload, so the tier is picked on memory rather than CPU.
 
 1 GB is comfortable for steady state. Three guards remain, because the tight
-moment is not steady state — it is a `docker pull` decompressing a ~260 MB image
+moment is not steady state — it is a `docker pull` decompressing a ~210 MB image
 while the app is still serving:
 
 - **2 GB swap file** (`vm.swappiness=10`). Absorbs the deploy-time spike instead

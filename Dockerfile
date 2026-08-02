@@ -89,11 +89,45 @@ RUN pnpm prune --prod --ignore-scripts \
       node_modules/.pnpm/react@* \
       node_modules/.pnpm/react-dom@*             `# Studio's UI, not this app` \
       node_modules/.pnpm/@prisma+engines@*       `# schema engine: migrations only, ~21 MB` \
+      `# --- Reachable only from the prisma CLI's peer dependency. @prisma/client` \
+      `# declares a peer dep on the CLI, so pnpm keeps the CLI's whole transitive` \
+      `# tree in the virtual store even after --prod. Every entry below was checked` \
+      `# against the external imports of build/ and appears in none of them.` \
+      node_modules/.pnpm/@maplibre+maplibre-gl-style-spec@* `# client-side; in the browser bundle` \
+      node_modules/.pnpm/elkjs@*                 `# graph layout for Studio, ~8 MB` \
+      node_modules/.pnpm/fast-check@*            `# property-testing library, ~5 MB` \
+      node_modules/.pnpm/remeda@*                `# Studio utils, ~6 MB` \
+      node_modules/.pnpm/lodash@*                `# Studio utils, ~5 MB` \
+      node_modules/.pnpm/@visx+*                 `# Studio charts` \
+      node_modules/.pnpm/ajv@*                   `# schema validation, build-time` \
+      node_modules/.pnpm/jiti@*                  `# TS loader, build-time` \
+      node_modules/.pnpm/csstype@*               `# types, compile-time` \
+      node_modules/.pnpm/@maplibre+mlt@*         `# client-side tile decoder` \
+      node_modules/.pnpm/@electric-sql+pglite-tools@* `# Postgres tooling, unused here` \
+      `# better-sqlite3 ships the SQLite C amalgamation and its own C++ sources.` \
+      `# The module is compiled during the deps stage, so the only artifact that` \
+      `# can still be loaded is build/Release/better_sqlite3.node (~2.3 MB); deps/` \
+      `# alone is ~10 MB of .c/.h that nothing reads at runtime.` \
+      node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/deps \
+      node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/src \
+      node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/binding.gyp \
  && find node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime \
-      -name 'query_compiler_*' ! -name '*sqlite*' -delete
+      -name 'query_compiler_*' ! -name '*sqlite*' -delete \
+ && find node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime \
+      -name 'query_compiler_*sqlite*.js' -delete
 # Prisma ships a WASM query compiler for every database it supports — SQL Server,
 # PostgreSQL, CockroachDB and MySQL are ~4.7 MB each in both .js and .mjs. This
 # app's datasource provider is sqlite, so only the sqlite compiler can ever load.
+#
+# The second find drops the CommonJS half of what survives. adapter-node emits an
+# ESM server (build/index.js is `import`-based), so only the .mjs base64 payloads
+# are reachable; the .js twins are byte-for-byte dead weight at ~8 MB.
+#
+# NOTE for whoever edits this list: `valibot` looks like a dev dependency and is
+# not — @sveltejs/kit imports it at runtime. Removing it fails at request time,
+# not build time. Verify any addition by running the image against a real
+# database and exercising /, /api/sites, /api/search and /api/sites/[epaId];
+# `docker build` will happily produce a broken image.
 
 # ---- Stage 4: serve on Node -------------------------------------------------
 FROM node:22-alpine AS runtime
@@ -102,6 +136,16 @@ ENV NODE_ENV=production
 
 # No package manager installed here: node_modules arrives prebuilt, and the
 # entrypoint is plain `node`. That alone drops the ~52 MB global pnpm install.
+#
+# The base image still ships npm and corepack, which this image never invokes —
+# nothing in it runs a package manager, and CMD is `node` directly. Removing
+# them is ~18 MB and also drops the largest source of CVE noise in a scan of
+# this image, since npm's own dependency tree is the bulk of what a scanner
+# finds in node:alpine.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn*
+
 COPY package.json ./
 COPY --from=pruned /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
