@@ -1,5 +1,7 @@
 # Exposure Tracking Map
 
+[![CI](https://github.com/quinnjr/exposure-tracking-map/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/quinnjr/exposure-tracking-map/actions/workflows/ci.yml)
+
 Maps all 1,840 Superfund sites on the EPA National Priorities List and answers
 one question: given a US address, which sites are nearby, how far away are they,
 and what is at them?
