@@ -9,7 +9,7 @@ running the app as a Docker container behind nginx, with TLS from Let's Encrypt.
 |---|---|
 | `digitalocean.SshKey` | The account had no keys; the droplet needs one to be reachable at all. |
 | `digitalocean.ReservedIp` | What makes the server *fixed* — the droplet can be rebuilt or resized without the DNS record changing. |
-| `digitalocean.Droplet` | Ubuntu 24.04, `s-1vcpu-2gb`, `nyc3`. Weekly backups on. |
+| `digitalocean.Droplet` | Ubuntu 24.04, `s-1vcpu-512mb-10gb`, `nyc3`. Weekly backups on, 2 GB swap. |
 | `digitalocean.ReservedIpAssignment` | Binds the reserved IP to the droplet. |
 | `digitalocean.Firewall` | Cloud firewall: 22/80/443 in, all out. |
 | `digitalocean.DnsRecord` | The single `parkinsons` A record. |
@@ -143,11 +143,32 @@ pulumi stack output uploadDatabaseCommand
 
 | Item | Monthly |
 |---|---|
-| Droplet `s-1vcpu-2gb` | $12.00 |
-| Droplet backups (20%) | $2.40 |
+| Droplet `s-1vcpu-512mb-10gb` | $4.00 |
+| Droplet backups (20%) | $0.80 |
 | Reserved IP (while attached) | $0.00 |
 | GHCR (public) | $0.00 |
-| **Total** | **~$14.40** |
+| **Total** | **~$4.80** |
+
+### Running on 512 MB
+
+This is DigitalOcean's smallest tier — 1 *shared* vCPU is their floor, there is
+no fractional-CPU size, but shared means a time slice rather than a dedicated
+core. RAM, not CPU, is the binding constraint, so three things exist to keep it
+upright:
+
+- **2 GB swap file.** Not optional. Decompressing the ~260 MB image during
+  `docker pull` is on its own enough to OOM a swapless 512 MB box, and the
+  kernel's OOM killer targets the largest RSS — which is the app.
+  `vm.swappiness=10` keeps swap a safety net rather than a routine path.
+- **Container capped at 320 MB with `--max-old-space-size=192`.** Node sizes its
+  default heap against *total host memory*, so without the cap it will grow past
+  what the box has and take nginx down with it.
+- **Docker log rotation** (10 MB × 3). The default json-file driver is unbounded,
+  and on a 10 GB disk a chatty container can fill the root filesystem.
+
+Headroom is genuinely thin. If the site starts OOM-restarting under real
+traffic, `pulumi config set size s-1vcpu-1gb && pulumi up` is a two-minute fix
+for $2/mo — the reserved IP means the address does not change.
 
 A reserved IP is free while attached to a running droplet and billed only if
 left dangling — so destroying the droplet but keeping the stack costs money.

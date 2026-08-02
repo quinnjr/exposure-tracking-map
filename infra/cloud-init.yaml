@@ -72,12 +72,19 @@ write_files:
 
       echo "[deploy] restarting container"
       docker rm -f app 2>/dev/null || true
+      # Memory limits matter on the 512 MB tier. Node sizes its default heap
+      # from TOTAL host memory, so without --max-old-space-size it will happily
+      # grow past what the box has and take nginx down with it. 192 MB heap
+      # inside a 320 MB container leaves room for nginx, dockerd and sshd.
       docker run -d \
         --name app \
         --restart unless-stopped \
+        --memory 320m \
+        --memory-swap 768m \
         -p 127.0.0.1:3000:3000 \
         -v /srv/app/data:/data \
         -e DATABASE_URL="file:/data/dev.db" \
+        -e NODE_OPTIONS="--max-old-space-size=192" \
         "$IMAGE"
 
       # Untagged layers from previous deploys, not the whole build cache.
@@ -169,6 +176,19 @@ write_files:
       WantedBy=timers.target
 
 runcmd:
+  # --- Swap ----------------------------------------------------------------
+  # Not optional on the 512 MB tier. Decompressing a ~260 MB image during
+  # `docker pull` is itself enough to OOM a swapless box, and the kernel's OOM
+  # killer picks the largest RSS — which is the app. 2 GB on a 10 GB disk.
+  # swappiness is left low so swap is a safety net, not a routine path.
+  - fallocate -l 2G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - sysctl -w vm.swappiness=10
+  - echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf
+
   # --- Docker, from the official repository -------------------------------
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -179,6 +199,16 @@ runcmd:
       > /etc/apt/sources.list.d/docker.list
   - apt-get update -y
   - DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  # Default json-file logging is unbounded; on a 10 GB disk a chatty container
+  # can fill the root filesystem and take nginx and sshd with it.
+  - mkdir -p /etc/docker
+  - |
+    cat > /etc/docker/daemon.json <<'EOF'
+    {
+      "log-driver": "json-file",
+      "log-opts": { "max-size": "10m", "max-file": "3" }
+    }
+    EOF
   - systemctl enable --now docker
 
   # --- Data directory (populated out of band; see README) ------------------
