@@ -7,9 +7,10 @@ export default defineConfig({
   timeout: 30_000,
 
   // Retries only in CI. These specs drive a real production build behind a
-  // preview server on a shared runner, and one of them still calls the live
-  // Census geocoder, so a failure there is not always a regression. Locally,
-  // retries would hide genuine flakiness, so there are none.
+  // preview server on a shared runner (a full build-and-preview per run), and
+  // that startup path is a plausible source of run-to-run variance unrelated
+  // to the code under test. Locally, retries would hide genuine flakiness, so
+  // there are none.
   retries: process.env.CI ? 2 : 0,
 
   // Fail the run if someone commits `test.only`.

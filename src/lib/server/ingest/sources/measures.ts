@@ -69,9 +69,9 @@ export async function fetchMeasures(
       const measures = parseMeasures(await res.text());
       writeCache(key, measures);
       return measures;
-    } catch (err) {
+    } catch (error) {
       console.warn(
-        `[measures] ${semsSiteId} attempt ${attempt + 1}: ${err instanceof Error ? err.message : err}`
+        `[measures] ${semsSiteId} attempt ${attempt + 1}: ${error instanceof Error ? error.message : error}`
       );
     }
   }

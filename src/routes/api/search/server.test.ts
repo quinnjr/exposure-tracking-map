@@ -44,10 +44,10 @@ describe('POST /api/search', () => {
     try {
       await POST({ request: requestFor({ address: tooLong }) } as never);
       expect.unreachable('expected POST to throw');
-    } catch (e) {
-      expect(isHttpError(e, 400)).toBe(true);
-      if (isHttpError(e, 400)) {
-        expect(e.body.message).toContain('200 characters or fewer');
+    } catch (error) {
+      expect(isHttpError(error, 400)).toBe(true);
+      if (isHttpError(error, 400)) {
+        expect(error.body.message).toContain('200 characters or fewer');
       }
     }
   });
@@ -61,10 +61,10 @@ describe('POST /api/search', () => {
     try {
       await POST({ request } as never);
       expect.unreachable('expected POST to throw');
-    } catch (e) {
-      expect(isHttpError(e, 400)).toBe(true);
-      if (isHttpError(e, 400)) {
-        expect(e.body.message).toBe('Request body must be JSON');
+    } catch (error) {
+      expect(isHttpError(error, 400)).toBe(true);
+      if (isHttpError(error, 400)) {
+        expect(error.body.message).toBe('Request body must be JSON');
       }
     }
   });
@@ -73,10 +73,10 @@ describe('POST /api/search', () => {
     try {
       await POST({ request: requestFor({ address: 'x', radiusMiles: 37 }) } as never);
       expect.unreachable('expected POST to throw');
-    } catch (e) {
-      expect(isHttpError(e, 400)).toBe(true);
-      if (isHttpError(e, 400)) {
-        expect(e.body.message).toBe('Unsupported search radius');
+    } catch (error) {
+      expect(isHttpError(error, 400)).toBe(true);
+      if (isHttpError(error, 400)) {
+        expect(error.body.message).toBe('Unsupported search radius');
       }
     }
     expect(searchSites).not.toHaveBeenCalled();
@@ -87,10 +87,10 @@ describe('POST /api/search', () => {
     try {
       await POST({ request: requestFor({ address: 'x' }) } as never);
       expect.unreachable('expected POST to throw');
-    } catch (e) {
-      expect(isHttpError(e, 422)).toBe(true);
-      if (isHttpError(e, 422)) {
-        expect(e.body.message).toBe("We couldn't find that address. Try adding a city and state.");
+    } catch (error) {
+      expect(isHttpError(error, 422)).toBe(true);
+      if (isHttpError(error, 422)) {
+        expect(error.body.message).toBe("We couldn't find that address. Try adding a city and state.");
       }
     }
   });
@@ -100,10 +100,10 @@ describe('POST /api/search', () => {
     try {
       await POST({ request: requestFor({ address: 'x' }) } as never);
       expect.unreachable('expected POST to throw');
-    } catch (e) {
-      expect(isHttpError(e, 503)).toBe(true);
-      if (isHttpError(e, 503)) {
-        expect(e.body.message).toBe('The address lookup service is unavailable. Please try again.');
+    } catch (error) {
+      expect(isHttpError(error, 503)).toBe(true);
+      if (isHttpError(error, 503)) {
+        expect(error.body.message).toBe('The address lookup service is unavailable. Please try again.');
       }
     }
   });

@@ -138,22 +138,27 @@
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     m.on('error', (e) => {
       console.warn('[map]', e.error);
-      // A single tile 404 (or similarly scoped failure) fires 'error' on an
-      // otherwise-working map, so only treat this as a fatal load failure if
-      // the style itself never finished loading (`load` hasn't fired yet, so
-      // `ready` is still false). Once `ready` is true, later errors are
-      // assumed to be non-fatal (e.g. a missing tile) and are just logged.
+      // MapLibre emits non-fatal 'error' events during style parsing (e.g. a
+      // blocked or 404'd sprite/glyph fetch) well before 'load' fires, so an
+      // error alone doesn't mean the style failed to load. Treat a pre-load
+      // error as only a *provisional* failure: if the style still finishes
+      // loading, the 'load' handler below clears this latch, because errors
+      // emitted before 'load' are not necessarily fatal. If 'load' never
+      // fires, this stays true and the banner is shown.
       if (!ready) mapFailed = true;
     });
     m.on('load', () => {
       addLayers(m);
       map = m;
       ready = true;
+      // A successful load overrides any provisional failure recorded above.
+      mapFailed = false;
     });
 
     return () => {
       ready = false;
       map = null;
+      mapFailed = false;
       m.remove();
     };
   });

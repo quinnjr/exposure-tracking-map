@@ -28,10 +28,21 @@ export const EXPOSURE_LEGEND = [
 /**
  * MapLibre `match` over the feature's humanExposureStatus.
  *
- * `to-string` maps a null/absent property to '' and `downcase` normalises casing,
- * so this matches the same lowercase keys `exposureColor()` uses. Deriving the
- * label/colour pairs from EXPOSURE_COLORS means the map and the legend can never
- * disagree about a status the way two hand-maintained lists would.
+ * `to-string` is documented by MapLibre to map a null/absent property to '',
+ * which `downcase` then normalises, so this is expected to match the same
+ * lowercase keys `exposureColor()` uses. That specific runtime behaviour isn't
+ * evaluated by this repo's tests — this module deliberately has no MapLibre
+ * dependency (so it stays unit-testable without a real evaluator), and
+ * `statusColors.test.ts` only checks the expression's *structure* (that it's a
+ * `match` on `downcase(to-string(get(...)))`, with labels derived from
+ * EXPOSURE_COLORS and a default of UNKNOWN_COLOR). `exposureColor()` itself is
+ * independently unit-tested and guarantees the same UNKNOWN_COLOR fallback for
+ * every non-map surface (legend, results list, dialog), so the two are only
+ * guaranteed to agree by construction (shared EXPOSURE_COLORS/UNKNOWN_COLOR),
+ * not by a test that evaluates this expression through a real MapLibre style.
+ * Deriving the label/colour pairs from EXPOSURE_COLORS means the map and the
+ * legend can never disagree about a status the way two hand-maintained lists
+ * would.
  *
  * One residual gap versus `exposureColor()`: MapLibre has no `trim` operator, so
  * this cannot strip surrounding whitespace the way `exposureColor()` does. That's

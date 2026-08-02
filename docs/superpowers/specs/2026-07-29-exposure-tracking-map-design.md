@@ -298,14 +298,19 @@ Invoked as `pnpm download`. Three sources run in order, each wrapped in its own 
 1. **sites** — three requests (`F`, `D`, `P`) → 1,840 `Site` records.
 2. **contaminants** — paginated at 5,000 rows → `Contaminant` + `SiteContaminant`, filtered to
    ingested `semsSiteId` values.
-3. **measures** — one profile-page request per site, sequential with a 400 ms delay
-   (~15–25 minutes for a full pass) → the four measure columns.
+3. **measures** — one profile-page request per site, sequential with a 400 ms politeness delay
+   (~2 hours for a full pass) → the four measure columns. The original estimate of 15–25 minutes
+   assumed the 400 ms delay was the dominant cost; live measurement instead showed ~3.75 seconds
+   per site end-to-end, since EPA's own response time dwarfs the throttle, so 1,840 sites takes
+   roughly 2 hours. The 400 ms delay itself is unchanged.
 
 Required behaviour:
 
 - **Idempotent.** Upsert keyed on `semsSiteId`. Re-running updates in place; safe to schedule.
-- **Cached.** Raw payloads written to `.cache/`. A same-day cache is reused unless `--refresh` is
-  passed. The measures scrape caches per site, so an interrupted pass resumes rather than restarts.
+- **Cached.** Raw payloads written to `.cache/`. A payload is reused for 24 hours from when it was
+  written (a rolling window measured from the cache file's mtime, not a calendar-day boundary)
+  unless `--refresh` is passed. The measures scrape caches per site, so an interrupted pass resumes
+  rather than restarts.
 - **Partial failure survivable.** If contaminants or measures fail, sites still ingest and that
   `IngestRun` records `failed` with the error text. A site with no contaminant rows renders as
   "no contaminant data reported"; a site with no measures renders as "status not reported".
@@ -431,8 +436,9 @@ exists to detect upstream schema changes and does not run in CI.
   parser is table-structural rather than text-based, missing measures degrade to `null` rather
   than failing, results are cached per site, and the canary test detects markup drift. If EPA
   restyles the profile page, `parseMeasures.ts` is the only file that changes.
-- **A full measures pass takes 15–25 minutes.** `--limit=N` keeps the development loop fast, and
-  per-site caching makes re-runs cheap.
+- **A full measures pass takes ~2 hours** (1,840 sites at ~3.75 s/site end-to-end; supersedes the
+  original 15–25 minute estimate, which assumed the 400 ms politeness delay was the dominant cost).
+  `--limit=N` keeps the development loop fast, and per-site caching makes re-runs cheap.
 - **Contaminant and measure coverage is uneven** across sites. Every UI surface must render
   correctly for a site with neither.
 - **OpenFreeMap is a free community service** with no uptime SLA. The tile style URL is a single

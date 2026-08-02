@@ -3,14 +3,14 @@
 # =============================================================================
 # Bun builds; Node installs and serves. Why, precisely:
 #
-#   1. Bun's runtime cannot load this app's SQLite driver. Verified on Bun
+#   1. Bun's runtime cannot load this app's SQLite driver. Observed on Bun
 #      1.3.14: `better-sqlite3` fails with ERR_DLOPEN_FAILED (oven-sh/bun#4290),
 #      and `node:sqlite`, which the Prisma 7 chain also reaches for, is not
 #      implemented in Bun.
 #   2. `bun install` does not merely fail to build that native module — it
-#      does not install it at all. Verified: `@prisma/adapter-better-sqlite3`
-#      lands, its `better-sqlite3` dependency does not. So Bun cannot own the
-#      dependency tree either.
+#      does not install it at all. Observed on the same Bun version:
+#      `@prisma/adapter-better-sqlite3` lands, its `better-sqlite3` dependency
+#      does not. So Bun cannot own the dependency tree either.
 #   3. Bun CAN run `prisma generate` and the Vite/SvelteKit build, which is
 #      where it is genuinely fast.
 #
@@ -72,9 +72,10 @@ RUN bun --bun run vite build
 # deleted package fails at request time, not at build time.
 FROM deps AS pruned
 # --ignore-scripts is load-bearing: package.json defines `prepare: svelte-kit
-# sync`, and pnpm fires lifecycle hooks during prune. That hook would run while
-# prune is removing @sveltejs/kit itself, failing with "svelte-kit: not found".
-# Nothing here needs a lifecycle script — the app is already built.
+# sync`, and pnpm 11.18.0 (pinned above) fires lifecycle hooks during prune.
+# That hook would run while prune is removing @sveltejs/kit itself, failing
+# with "svelte-kit: not found". This flag is defensive regardless of that
+# behaviour — nothing here needs a lifecycle script, the app is already built.
 RUN pnpm prune --prod --ignore-scripts \
  && rm -rf \
       node_modules/.pnpm/prisma@*                `# CLI: generate already ran` \
