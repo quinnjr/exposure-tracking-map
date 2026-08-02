@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # prisma.config.ts resolves env('DATABASE_URL') at load time and throws if it
+  # is absent, even for commands that never open the database.
+  DATABASE_URL: "file:./ci.db"
+
+jobs:
+  verify:
+    name: types, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # An explicit version, not corepack: this project declares
+      # devEngines.packageManager as a RANGE (pnpm@^11.13.0), and corepack
+      # rejects ranges — it demands exact semver.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Must precede check/test: the SvelteKit server routes import
+      # @prisma/client, and `migrate deploy` does NOT generate under Prisma 7 —
+      # only `migrate dev` does.
+      - run: pnpm exec prisma generate
+
+      # This is the step that guards the TypeScript pin. `typescript` is held at
+      # ^6.0.3 because svelte-check 4.7.4 refuses TS 7; without CI running this,
+      # a routine `pnpm up` would break the type check silently.
+      - name: Type check
+        run: pnpm check
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Production build
+        run: pnpm build
+
+  e2e:
+    name: end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      # playwright.config.ts drives its own server: migrate deploy -> generate ->
+      # seed fixture -> build -> preview, against a throwaway e2e.db.
+      #
+      # NOTE: five of the six specs are hermetic because the fixture seeds
+      # GeocodeCache rows for the addresses they use. The unmatchable-address
+      # spec genuinely calls the live US Census geocoder, so this job has a real
+      # third-party dependency and can fail on a Census outage rather than on a
+      # regression. If that becomes noisy, stub that one route.
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  container:
+    name: container builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build only — the image is not pushed anywhere. This exists so a change
+      # that breaks the multi-stage build (a moved file, a renamed script, a
+      # dependency that stops resolving under Bun) fails here rather than the
+      # next time someone deploys.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: exposure-tracking-map:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A container that builds but cannot serve is not a passing build.
+      - name: Smoke test the image
+        run: |
+          docker run -d --name etm -p 3000:3000 exposure-tracking-map:ci
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null http://localhost:3000/; then break; fi
+            sleep 1
+          done
+          echo "--- container logs ---"
+          docker logs etm
+          # No database is mounted, so / must still render and /api/sites must
+          # fail cleanly rather than hanging or crashing the process.
+          curl -sf -o /dev/null -w 'GET / -> %{http_code}\n' http://localhost:3000/
+          docker rm -f etm
