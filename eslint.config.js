@@ -147,18 +147,6 @@ export default ts.config(
   },
 
   {
-    // A Pulumi program is, by construction, a module whose top level declares
-    // resources — the "side effects" this rule flags are the entire point, and
-    // it runs as CommonJS under the Pulumi Node host, where `__dirname` is the
-    // correct way to locate cloud-init.yaml next to the program.
-    files: ['infra/**'],
-    rules: {
-      'unicorn/no-top-level-side-effects': 'off',
-      'unicorn/prefer-module': 'off'
-    }
-  },
-
-  {
     // In tests asserting whitespace handling, the literal IS the fixture.
     // `' '.repeat(3)` makes the reader evaluate an expression to learn what the
     // input is, and implies the count matters when any whitespace run would do.

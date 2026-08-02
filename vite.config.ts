@@ -33,8 +33,6 @@ export default defineConfig({
       '**/node_modules/**',
       '.svelte-kit/**',
       'build/**',
-      // Pulumi program; has its own toolchain and no Vitest suite.
-      'infra/**',
       // Playwright owns these; Vitest cannot run them.
       'tests/e2e/**'
     ],
