@@ -1,0 +1,13 @@
+{
+  "name": "parkinsons-exposure-map-infra",
+  "private": true,
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@pulumi/digitalocean": "^4.40.0",
+    "@pulumi/pulumi": "^3.145.0"
+  }
+}

@@ -1,0 +1,36 @@
+name: parkinsons-exposure-map
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm
+description: >-
+  Fixed DigitalOcean droplet serving the Exposure Tracking Map at
+  parkinsons.quinnjr.dev behind nginx, with the app running as a Docker
+  container pulled from the public GHCR image.
+
+# State lives in the same Spaces bucket as the quinnjr-dev stack, under a
+# separate project key, so the two never touch each other's checkpoints.
+# See README.md for the `pulumi login` line.
+
+config:
+  parkinsons-exposure-map:domain:
+    type: string
+    default: quinnjr.dev
+  parkinsons-exposure-map:subdomain:
+    type: string
+    default: parkinsons
+  parkinsons-exposure-map:region:
+    type: string
+    default: nyc3
+  parkinsons-exposure-map:size:
+    type: string
+    default: s-1vcpu-2gb
+  parkinsons-exposure-map:image:
+    type: string
+    default: ghcr.io/quinnjr/exposure-tracking-map:latest
+  parkinsons-exposure-map:sshPublicKeyPath:
+    type: string
+    default: ~/.ssh/id_ed25519.pub
+  parkinsons-exposure-map:letsencryptEmail:
+    type: string
+    default: quinn.josephr@gmail.com

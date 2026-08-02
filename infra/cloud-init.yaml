@@ -1,0 +1,203 @@
+#cloud-config
+# Provisions the droplet: Docker, nginx as a TLS-terminating reverse proxy, and
+# a systemd unit that runs the app container. Everything here is idempotent, so
+# a re-run (or a droplet rebuild from the same config) converges rather than
+# duplicating.
+#
+# Deliberately NOT handled here: the database. /srv/app/data is created empty
+# and the file is copied up out of band (see infra/README.md). A droplet
+# rebuild therefore serves an empty map until dev.db is restored — that is the
+# accepted trade for keeping a ~3 MB binary out of the image and out of git.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - nginx
+  - certbot
+  - python3-certbot-nginx
+  - ufw
+
+write_files:
+  # nginx vhost. Plain HTTP only at first boot: certbot rewrites this in place
+  # once the certificate exists. Writing the TLS block up front would make
+  # nginx fail to start, because the cert it references does not exist yet.
+  - path: /etc/nginx/sites-available/${FQDN}
+    permissions: '0644'
+    content: |
+      server {
+        listen 80;
+        listen [::]:80;
+        server_name ${FQDN};
+
+        # ACME http-01 challenges are served from disk, so a certificate renewal
+        # never depends on the app container being up.
+        location /.well-known/acme-challenge/ {
+          root /var/www/html;
+        }
+
+        location / {
+          proxy_pass http://127.0.0.1:3000;
+          proxy_http_version 1.1;
+          proxy_set_header Host              $host;
+          proxy_set_header X-Real-IP         $remote_addr;
+          proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header Upgrade           $http_upgrade;
+          proxy_set_header Connection        "upgrade";
+          proxy_read_timeout 30s;
+        }
+
+        # The GeoJSON pin payload is ~550 KB uncompressed and changes only when
+        # the downloader runs, so compressing it is the single biggest win here.
+        gzip on;
+        gzip_types application/json application/javascript text/css text/plain;
+        gzip_min_length 1024;
+      }
+
+  # Pull and (re)start the container. Used by the systemd unit below and safe
+  # to run by hand for a redeploy.
+  - path: /usr/local/bin/app-deploy
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      IMAGE="${IMAGE}"
+
+      echo "[deploy] pulling $IMAGE"
+      docker pull "$IMAGE"
+
+      echo "[deploy] restarting container"
+      docker rm -f app 2>/dev/null || true
+      docker run -d \
+        --name app \
+        --restart unless-stopped \
+        -p 127.0.0.1:3000:3000 \
+        -v /srv/app/data:/data \
+        -e DATABASE_URL="file:/data/dev.db" \
+        "$IMAGE"
+
+      # Untagged layers from previous deploys, not the whole build cache.
+      docker image prune -f
+      echo "[deploy] done"
+
+  # certbot needs the A record to resolve to THIS droplet before http-01 can
+  # succeed. Pulumi creates the record and the droplet in the same update, so
+  # on a first run DNS is usually still propagating when the box finishes
+  # booting. Retry rather than fail the provision.
+  - path: /usr/local/bin/app-tls
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      FQDN="${FQDN}"
+      EMAIL="${EMAIL}"
+
+      if [ -d "/etc/letsencrypt/live/$FQDN" ]; then
+        echo "[tls] certificate already present"
+        exit 0
+      fi
+
+      MY_IP="$(curl -fsS --max-time 10 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || true)"
+      echo "[tls] this droplet is $MY_IP; waiting for $FQDN to resolve to it"
+
+      for attempt in $(seq 1 60); do
+        RESOLVED="$(getent ahostsv4 "$FQDN" | awk 'NR==1{print $1}' || true)"
+        if [ -n "$RESOLVED" ] && [ "$RESOLVED" = "$MY_IP" ]; then
+          echo "[tls] resolved after ${attempt} attempt(s); requesting certificate"
+          certbot --nginx --non-interactive --agree-tos \
+            --email "$EMAIL" --domains "$FQDN" --redirect
+          exit 0
+        fi
+        echo "[tls] attempt ${attempt}: $FQDN -> ${RESOLVED:-unresolved}, retrying in 30s"
+        sleep 30
+      done
+
+      # Deliberately non-fatal: the site still serves over plain HTTP, and the
+      # timer below retries. Failing the unit here would leave a healthy box
+      # looking broken.
+      echo "[tls] gave up after 30 minutes; site is serving HTTP only" >&2
+
+  - path: /etc/systemd/system/app.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Exposure Tracking Map container
+      After=docker.service network-online.target
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/local/bin/app-deploy
+      ExecStop=/usr/bin/docker rm -f app
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/app-tls.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Obtain the Let's Encrypt certificate once DNS resolves
+      After=network-online.target nginx.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/app-tls
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # Retries the certificate hourly until it exists. Once /etc/letsencrypt/live
+  # is populated the script exits immediately, and certbot's own packaged timer
+  # takes over renewals.
+  - path: /etc/systemd/system/app-tls.timer
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Retry certificate issuance until it succeeds
+
+      [Timer]
+      OnBootSec=5min
+      OnUnitActiveSec=1h
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  # --- Docker, from the official repository -------------------------------
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >-
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable"
+      > /etc/apt/sources.list.d/docker.list
+  - apt-get update -y
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+
+  # --- Data directory (populated out of band; see README) ------------------
+  - mkdir -p /srv/app/data
+
+  # --- nginx ---------------------------------------------------------------
+  - rm -f /etc/nginx/sites-enabled/default
+  - ln -sf /etc/nginx/sites-available/${FQDN} /etc/nginx/sites-enabled/${FQDN}
+  - nginx -t
+  - systemctl enable --now nginx
+  - systemctl reload nginx
+
+  # --- Host firewall, defence in depth behind the cloud firewall ----------
+  - ufw allow OpenSSH
+  - ufw allow 'Nginx Full'
+  - ufw --force enable
+
+  # --- App + TLS -----------------------------------------------------------
+  - systemctl daemon-reload
+  - systemctl enable --now app.service
+  - systemctl enable --now app-tls.timer
+  - systemctl start app-tls.service || true

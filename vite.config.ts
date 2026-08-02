@@ -27,9 +27,14 @@ export default defineConfig({
     // default, and skipping one has to be a conscious act.
     include: ['**/*.{test,spec}.{js,ts}'],
     exclude: [
-      'node_modules/**',
+      // `**/` matters: a bare `node_modules/**` matches only the top-level one,
+      // so a nested tree such as infra/node_modules would have its dependencies'
+      // own *.spec.ts files collected and run as if they were ours.
+      '**/node_modules/**',
       '.svelte-kit/**',
       'build/**',
+      // Pulumi program; has its own toolchain and no Vitest suite.
+      'infra/**',
       // Playwright owns these; Vitest cannot run them.
       'tests/e2e/**'
     ],
