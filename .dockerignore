@@ -1,0 +1,17 @@
+node_modules
+.git
+.svelte-kit
+build
+.superpowers
+.cache
+.cache-canary
+test-results
+playwright-report
+docs
+
+# Databases are mounted at runtime, never baked into the image.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
