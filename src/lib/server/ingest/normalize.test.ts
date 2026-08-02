@@ -104,7 +104,7 @@ describe('normalizeSites', () => {
   });
 
   it('normalizes empty strings to null', () => {
-    const { records } = normalizeSites([{ ...LINEMASTER, zip_code: ' '.repeat(3) }]);
+    const { records } = normalizeSites([{ ...LINEMASTER, zip_code: '   ' }]);
     expect(records[0].zip).toBeNull();
   });
 

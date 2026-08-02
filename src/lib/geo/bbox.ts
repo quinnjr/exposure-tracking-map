@@ -20,15 +20,14 @@ const SAFETY_FACTOR = 1.001;
 
 const degreesPerMileLatitude = 180 / (Math.PI * EARTH_RADIUS_MILES);
 
+/** Normalise any longitude into [-180, 180). */
+const wrap = (lon: number): number => ((((lon + 180) % 360) + 360) % 360) - 180;
+
 /**
  * Smallest lat/lng box guaranteed to contain every point within `miles` of
  * `center`. Used only as a cheap indexed prefilter — callers still apply an
  * exact haversine check, so the box may over-select but must never under-select.
  */
-/** Normalise any longitude into [-180, 180). Closes over nothing, so it lives
- * at module scope rather than being rebuilt on every call. */
-const wrap = (lon: number): number => ((((lon + 180) % 360) + 360) % 360) - 180;
-
 export function boundingBox(center: LatLng, miles: number): BBox {
   const latDelta = miles * degreesPerMileLatitude * SAFETY_FACTOR;
 
@@ -44,13 +43,13 @@ export function boundingBox(center: LatLng, miles: number): BBox {
 
   const rawMin = center.longitude - lonDelta;
   const rawMax = center.longitude + lonDelta;
-  const isWrapsAntimeridian = rawMin < -180 || rawMax > 180;
+  const wrapsAntimeridian = rawMin < -180 || rawMax > 180;
 
   return {
     minLatitude,
     maxLatitude,
-    minLongitude: isWrapsAntimeridian ? wrap(rawMin) : rawMin,
-    maxLongitude: isWrapsAntimeridian ? wrap(rawMax) : rawMax,
-    wrapsAntimeridian: isWrapsAntimeridian
+    minLongitude: wrapsAntimeridian ? wrap(rawMin) : rawMin,
+    maxLongitude: wrapsAntimeridian ? wrap(rawMax) : rawMax,
+    wrapsAntimeridian
   };
 }

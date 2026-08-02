@@ -36,17 +36,31 @@ const fixture: SiteDetail = {
 };
 
 describe('GET /api/sites/[epaId]', () => {
-  it('returns 404 for an unknown epaId', async () => {
+  // The 404 message is an API-wire contract, not user-visible copy:
+  // src/lib/components/SiteDialog.svelte fetches this route and, on a
+  // non-ok response, discards the body entirely (it rejects with just the
+  // status string) and renders its own fixed "Could not load details for this
+  // site." text. So the string below is pinned for API consumers, not because
+  // any UI displays it — changing the UI copy does not require changing this.
+  it('returns 404 with the "Site not found" body for an unknown epaId', async () => {
     siteDetail.mockResolvedValueOnce(null);
-    await expect(
-      GET({ params: { epaId: 'NOPE0000000' } } as never)
-    ).rejects.toSatisfy((e) => isHttpError(e, 404));
+    try {
+      await GET({ params: { epaId: 'NOPE0000000' } } as never);
+      expect.unreachable('expected GET to throw');
+    } catch (error) {
+      expect(isHttpError(error, 404)).toBe(true);
+      if (isHttpError(error, 404)) {
+        expect(error.body.message).toBe('Site not found');
+      }
+    }
     expect(siteDetail).toHaveBeenCalledWith({}, 'NOPE0000000');
   });
 
   it('returns the site detail for a known epaId', async () => {
     siteDetail.mockResolvedValueOnce(fixture);
     const response = await GET({ params: { epaId: 'GA0001234567' } } as never);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json');
     const body = (await response.json()) as SiteDetail;
     expect(body).toEqual(fixture);
     expect(siteDetail).toHaveBeenCalledWith({}, 'GA0001234567');

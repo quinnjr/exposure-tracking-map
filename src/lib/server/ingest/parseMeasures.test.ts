@@ -88,6 +88,49 @@ describe('parseMeasures', () => {
     expect(parseMeasures(html).humanExposureStatus).toBe('Yes');
   });
 
+  it('decodes a BMP numeric entity', () => {
+    const html = `
+      <table><thead><tr><th>Performance Measure</th><th>Status</th><th>What does this mean?</th></tr></thead>
+      <tbody><tr><td>Human Exposure Under Control</td><td>Yes &#8212; verified</td><td>legend</td></tr></tbody></table>`;
+    expect(parseMeasures(html).humanExposureStatus).toBe('Yes — verified');
+  });
+
+  it('decodes a numeric entity above U+FFFF as one code point, not modulo 65536', () => {
+    const html = `
+      <table><thead><tr><th>Performance Measure</th><th>Status</th><th>What does this mean?</th></tr></thead>
+      <tbody><tr><td>Human Exposure Under Control</td><td>Yes &#128512;</td><td>legend</td></tr></tbody></table>`;
+    const status = parseMeasures(html).humanExposureStatus;
+    expect(status).toContain('\u{1F600}');
+    // The whole point of this test: fromCharCode(128512) wraps to U+F600, so
+    // this assertion is what fails on the pre-fix code and passes on the fix.
+    // fromCharCode is the OLD behaviour this assertion exists to reject;
+    // using fromCodePoint here would make the test tautological.
+    // eslint-disable-next-line unicorn/prefer-code-point
+    expect(status).not.toContain(String.fromCharCode(128_512));
+  });
+
+  it('leaves out-of-range numeric entities intact rather than throwing', () => {
+    // 1114112 is 0x110000, one past the maximum code point; 99999999 is far past.
+    for (const entity of ['&#1114112;', '&#99999999;']) {
+      const html = `
+        <table><thead><tr><th>Performance Measure</th><th>Status</th><th>What does this mean?</th></tr></thead>
+        <tbody><tr><td>Human Exposure Under Control</td><td>Yes ${entity}</td><td>legend</td></tr></tbody></table>`;
+      let status: string | null = null;
+      expect(() => {
+        status = parseMeasures(html).humanExposureStatus;
+      }).not.toThrow();
+      expect(status).toBe(`Yes ${entity}`);
+    }
+  });
+
+  it('does not throw on a lone surrogate entity', () => {
+    const html = `
+      <table><thead><tr><th>Performance Measure</th><th>Status</th><th>What does this mean?</th></tr></thead>
+      <tbody><tr><td>Human Exposure Under Control</td><td>Yes &#55296;</td><td>legend</td></tr></tbody></table>`;
+    expect(() => parseMeasures(html)).not.toThrow();
+    expect(parseMeasures(html).humanExposureStatus).toBe('Yes &#55296;');
+  });
+
   it('collapses generous internal/surrounding whitespace to an exact trimmed value', () => {
     // statusColors.ts's MAPLIBRE_COLOR_EXPRESSION matches status strings literally
     // and cannot call trim() — MapLibre's expression language has no such

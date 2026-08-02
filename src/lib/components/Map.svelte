@@ -127,7 +127,15 @@
     }
   }
 
+  // Runs once on mount: it reads no reactive state during tracking (`container`
+  // is a plain binding, and `ready` is only read inside deferred MapLibre
+  // callbacks), so the cleanup below fires only on component destroy.
   $effect(() => {
+    // Set before m.remove() so the 'error' listener, which is still attached
+    // while MapLibre aborts in-flight tile/glyph requests, cannot re-latch
+    // mapFailed on the way out.
+    let disposed = false;
+
     const m = new maplibregl.Map({
       container,
       style: STYLE_URL,
@@ -145,20 +153,31 @@
       // loading, the 'load' handler below clears this latch, because errors
       // emitted before 'load' are not necessarily fatal. If 'load' never
       // fires, this stays true and the banner is shown.
-      if (!ready) mapFailed = true;
+      if (!disposed && !ready) mapFailed = true;
     });
     m.on('load', () => {
-      addLayers(m);
-      map = m;
-      ready = true;
-      // A successful load overrides any provisional failure recorded above.
-      mapFailed = false;
+      try {
+        addLayers(m);
+        map = m;
+        ready = true;
+        // A successful load overrides any provisional failure recorded above.
+        mapFailed = false;
+      } catch (error) {
+        // addSource/addLayer can throw on a style-spec rejection (the paint
+        // colour expressions are cast, so they are unchecked at compile time).
+        // Without this the handler would abort silently: `ready` stays false,
+        // every downstream $effect no-ops, and the user gets a bare basemap
+        // with no pins and no explanation. This is the one post-load path
+        // where the failure latch genuinely should be set.
+        console.error('[map] failed to add layers', error);
+        mapFailed = true;
+      }
     });
 
     return () => {
+      disposed = true;
       ready = false;
       map = null;
-      mapFailed = false;
       m.remove();
     };
   });

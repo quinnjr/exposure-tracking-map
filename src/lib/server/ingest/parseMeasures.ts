@@ -39,7 +39,16 @@ function cellText(html: string): string {
   // fromCodePoint, not fromCharCode: the latter takes its argument modulo
   // 65536, so an entity above U+FFFF (&#128512;) would silently decode to an
   // unrelated character rather than the intended one.
-  s = s.replaceAll(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)));
+  // The input is untrusted scraped HTML and fromCodePoint (unlike fromCharCode)
+  // throws RangeError on out-of-range values and lone surrogates, so every
+  // rejected entity is left as literal text: parseMeasures must never throw.
+  s = s.replaceAll(/&#(\d+);/g, (match, code) => {
+    const n = Number(code);
+    const isLoneSurrogate = n >= 0xD8_00 && n <= 0xDF_FF;
+    return Number.isSafeInteger(n) && n >= 0 && n <= 0x10_FF_FF && !isLoneSurrogate
+      ? String.fromCodePoint(n)
+      : match;
+  });
   return s.replaceAll(/\s+/g, ' ').trim();
 }
 

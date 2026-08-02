@@ -9,7 +9,16 @@ import svelteConfig from './svelte.config.js';
 export default ts.config(
   js.configs.recommended,
   ...ts.configs.recommended,
-  unicorn.configs.recommended,
+
+  // `unopinionated`, not `recommended`. Both ship the same 300-odd rules; the
+  // difference is that `recommended` also enables unicorn's taste layer —
+  // naming mandates, null bans, ternary shape. Measured against this codebase,
+  // 13 of the rules we would otherwise have to disable by hand are already off
+  // here, so the exception list below shrinks to genuine disagreements. It also
+  // means the next unicorn major lands new taste rules OFF rather than dumping
+  // a fresh wall of errors into `pnpm lint`.
+  unicorn.configs.unopinionated,
+
   ...svelte.configs.recommended,
 
   {
@@ -44,88 +53,105 @@ export default ts.config(
     }
   },
 
-  // ---------------------------------------------------------------------------
-  // Unicorn rules switched off deliberately. Each of these fights a convention
-  // this project already applies consistently; churning ~60 files to satisfy a
-  // linter's default taste would create noise, not correctness.
-  // ---------------------------------------------------------------------------
   {
     rules: {
-      // The repo uses camelCase module names throughout (parseMeasures.ts,
-      // statusColors.ts, seed-fixture.ts). SvelteKit additionally mandates
-      // names this rule rejects outright: +page.svelte, +server.ts, [epaId].
-      'unicorn/filename-case': 'off',
+      // Scoped to the one module we have a position on. The rule's default
+      // wants `import path from 'node:path'`; we use named imports from
+      // `node:path` throughout. Switching the whole rule off would also stop
+      // it checking `node:util`, `node:os`, and namespace-import style, which
+      // this project has never taken a view on either way.
+      'unicorn/import-style': ['error', { styles: { path: { named: true } } }],
 
-      // Domain vocabulary here is abbreviated by nature and matches EPA's own
-      // field names: epaId, semsSiteId, npl, env, params, props, db.
-      'unicorn/prevent-abbreviations': 'off',
-
-      // Same family, and the cure is worse than the disease: this rule wants
-      // `args` renamed to `arguments_` and `dir` to `directory`. A trailing
-      // underscore to dodge a reserved word is not an improvement. 65 of the
-      // 172 initial errors were this one rule.
-      'unicorn/name-replacements': 'off',
-
-      // `null` is load-bearing in this codebase rather than incidental: Prisma
-      // returns null for absent columns, and "not reported" is a real domain
-      // state distinct from undefined. Collapsing the two would lose meaning.
-      'unicorn/no-null': 'off',
-
-      // Node's process.exitCode is set deliberately in the download CLI so a
-      // partial-source failure surfaces to the shell without throwing.
-      'unicorn/no-process-exit': 'off',
-
-      // Incompatible with two patterns this project uses pervasively and
-      // correctly: Svelte 5 runes (`let x = $state()` at module scope, assigned
-      // inside onMount/$effect — that IS the reactivity model), and Vitest
-      // lifecycle setup (`let db` assigned in beforeAll). 44 hits, none a bug.
-      'unicorn/no-top-level-assignment-in-function': 'off',
-
-      // Autofixes to `error_` whenever `error` is already bound — which it is
-      // in every SvelteKit route, since `error` is imported from @sveltejs/kit.
-      // It also renamed a descriptive `auditErr` to `error_`, losing meaning.
-      // A trailing underscore is not a better name than the one it replaced.
-      'unicorn/catch-error-name': 'off',
-
-      // Wants `import path from 'node:path'`. Named imports from node: builtins
-      // are the modern convention and what this codebase uses throughout.
-      'unicorn/import-style': 'off',
-
-      // The remaining `.then()`/`.catch()` sites are ones where await is not
-      // available: Svelte `$effect` callbacks are synchronous by contract, and
-      // the download CLI's `main().catch()` is its top-level error boundary.
-      'unicorn/prefer-await': 'off',
-      'unicorn/prefer-top-level-await': 'off',
-
-      // Wants `.toSorted()`. Every `.sort()` here is applied to a fresh array
-      // from a spread or `.map()`, so nothing shared is being mutated; the
-      // copy the rule asks for is the copy the code already made.
+      // Wants `.toSorted()`. Verified each of the 6 call sites: every one
+      // sorts a fresh array from a spread or `.map()`, so nothing shared is
+      // mutated and the copy the rule asks for is the copy already made.
       'unicorn/no-array-sort': 'off',
 
-      // Stylistic ordering and shape preferences with no correctness content.
+      // Shape and ordering preferences with no correctness content. Grouped
+      // rather than argued individually because the argument is the same for
+      // each: they describe a house style this codebase does not hold.
       'unicorn/no-declarations-before-early-exit': 'off',
-      'unicorn/no-break-in-nested-loop': 'off',
-      'unicorn/no-await-expression-member': 'off',
-      'unicorn/prefer-iterator-to-array': 'off',
-      'unicorn/no-nested-ternary': 'off',
       'unicorn/prefer-minimal-ternary': 'off',
-      'unicorn/max-nested-calls': 'off',
 
-      // Guards against `.map(parseInt)` picking up the index argument. The
-      // callbacks passed by reference here are all single-parameter, so the
-      // hazard cannot arise, and naming them inline would only add noise.
-      'unicorn/no-array-callback-reference': 'off',
-
-      // Test helpers like `insideBox` read as predicates already; an `is`
-      // prefix mandate is taste, and this codebase does not follow it.
-      'unicorn/consistent-boolean-name': 'off',
-
-      // The only <a href> in the app points at an external EPA site profile,
-      // which resolve() does not apply to. Scoped off for links rather than
-      // switched off wholesale, so the goto/pushState checks — the ones that
-      // would catch a genuinely unresolved internal route — stay active.
-      'svelte/no-navigation-without-resolve': ['error', { ignoreLinks: true }]
+      // Left ON with links checked, rather than the blanket `ignoreLinks: true`
+      // this started as. See the SiteDialog carve-out below for the one
+      // exception; every other component still gets the check.
+      'svelte/no-navigation-without-resolve': ['error', { ignoreLinks: false }]
     }
+  },
+
+  {
+    // The one `<a href>` in the app, pointing at an external EPA site profile.
+    // `profileUrl` is built from a hardcoded `https://cumulis.epa.gov/...` base
+    // with scraped data landing only after the `?`, so it cannot carry a scheme
+    // and resolve() does not apply to it.
+    //
+    // Scoped to the file rather than switched off repo-wide, because the rule's
+    // real value is the INTERNAL link nobody has written yet: an unresolved
+    // internal href breaks only under a non-root `base` path, which never shows
+    // up in `pnpm dev`. An inline disable would be tighter still, but the rule
+    // reports on the `href` attribute line and no comment can sit between `<a`
+    // and its attributes without reformatting the markup.
+    files: ['src/lib/components/SiteDialog.svelte'],
+    rules: { 'svelte/no-navigation-without-resolve': 'off' }
+  },
+
+  {
+    // Configured rather than disabled, so the conventions the repo already
+    // follows are enforced going forward instead of resting on habit. Note
+    // `+page.svelte` and `+server.ts` are unaffected either way — the rule
+    // strips leading non-alphanumerics before checking. The ignore pattern
+    // covers SvelteKit's `[epaId]` route directory, the one name the framework
+    // genuinely dictates.
+    //
+    // Application code: camelCase modules (parseMeasures.ts, statusColors.ts),
+    // PascalCase components (SiteDialog.svelte).
+    files: ['src/**', 'scripts/**'],
+    rules: {
+      'unicorn/filename-case': [
+        'error',
+        { cases: { camelCase: true, pascalCase: true }, ignore: [/^\[.+]$/] }
+      ]
+    }
+  },
+
+  {
+    // Test scaffolding is kebab-case (seed-fixture.ts, prisma-test-client.ts,
+    // map-failure.spec.ts). A different tree with a different established
+    // convention — enforced separately rather than papered over by allowing
+    // every case everywhere, which would enforce nothing.
+    files: ['tests/**'],
+    rules: { 'unicorn/filename-case': ['error', { case: 'kebabCase' }] }
+  },
+
+  {
+    // `scripts/` is a CLI. `process.exit(1)` in its top-level `main().catch()`
+    // is the rule's own carve-out for CLI apps, which it cannot detect; the
+    // exit must be forced even with pending handles. Scoped here so an
+    // abrupt exit added to a server route or ingest module is still reported.
+    files: ['scripts/**'],
+    rules: { 'unicorn/no-process-exit': 'off' }
+  },
+
+  {
+    // Promise chains that cannot become `await`: Svelte `$effect` callbacks are
+    // synchronous by contract, and the download CLI's `main().catch()` is its
+    // top-level error boundary. Everywhere else — including test setup, where
+    // an unawaited `$disconnect()` is exactly the bug this rule catches — the
+    // rule stays on.
+    files: ['**/*.svelte', 'scripts/**'],
+    rules: {
+      'unicorn/prefer-await': 'off',
+      'unicorn/prefer-top-level-await': 'off'
+    }
+  },
+
+  {
+    // In tests asserting whitespace handling, the literal IS the fixture.
+    // `' '.repeat(3)` makes the reader evaluate an expression to learn what the
+    // input is, and implies the count matters when any whitespace run would do.
+    files: ['**/*.test.ts', 'tests/**'],
+    rules: { 'unicorn/prefer-string-repeat': 'off' }
   },
 
   {

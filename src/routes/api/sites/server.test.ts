@@ -37,29 +37,31 @@ describe('GET /api/sites', () => {
   it('sets a cache-control header of exactly "public, max-age=3600"', async () => {
     sitesGeoJson.mockResolvedValueOnce(fixture);
     const response = await GET({} as never);
+    expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
   });
 
-  it('returns the full pin set as a GeoJSON FeatureCollection with the expected pin properties', async () => {
+  it('responds 200 with a JSON content-type', async () => {
+    sitesGeoJson.mockResolvedValueOnce(fixture);
+    const response = await GET({} as never);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json');
+  });
+
+  // Because $lib/server/queries is mocked at the module boundary, this file can
+  // only own the route's own contract: status, headers, delegation to
+  // sitesGeoJson(prisma), and that the query result is serialised through
+  // unchanged. It deliberately does NOT assert the pin `properties` key set —
+  // doing so here would only round-trip `fixture` through json() and would keep
+  // passing if the real producer renamed a key. That shape is pinned for real,
+  // against a database row, in src/lib/server/queries.test.ts
+  // ("emits exactly the eight documented pin properties and no others").
+  it('delegates to sitesGeoJson(prisma) and passes its result through unchanged', async () => {
     sitesGeoJson.mockResolvedValueOnce(fixture);
     const response = await GET({} as never);
     const body = (await response.json()) as SiteFeatureCollection;
 
-    expect(body.type).toBe('FeatureCollection');
-    expect(body.features).toHaveLength(1);
-
-    const [feature] = body.features;
-    expect(feature.type).toBe('Feature');
-    expect(feature.geometry).toEqual({ type: 'Point', coordinates: [-84.1, 33.7] });
-    expect(feature.properties).toEqual({
-      epaId: 'GA0001234567',
-      semsSiteId: '0401234',
-      name: 'Test Superfund Site',
-      city: 'Atlanta',
-      state: 'GA',
-      nplStatusCode: 'F',
-      nplStatusName: 'Final',
-      humanExposureStatus: 'Under Control'
-    });
+    expect(sitesGeoJson).toHaveBeenCalledWith({});
+    expect(body).toEqual(fixture);
   });
 });

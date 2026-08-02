@@ -1,8 +1,7 @@
 import { haversineMiles } from '$lib/geo/haversine';
 import type { LatLng } from '$lib/geo/types';
 import { RADIUS_OPTIONS } from '$lib/radius';
-
-
+export { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS } from '$lib/radius';
 
 export type Ranked<T> = T & { distanceMiles: number };
 
@@ -51,5 +50,3 @@ export function nearest<T extends LatLng>(
 ): Ranked<T>[] {
   return rankByDistance(center, candidates).slice(0, count);
 }
-
-export { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS } from '$lib/radius';

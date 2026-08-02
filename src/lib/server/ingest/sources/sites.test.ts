@@ -30,11 +30,8 @@ describe('fetchSiteRows', () => {
 
     expect(seen).toHaveLength(NPL_STATUS_CODES.length);
     expect(rows).toHaveLength(3);
-    expect(rows.map((r) => r.npl_status_code).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
-      'D',
-      'F',
-      'P'
-    ]);
+    // Single-letter status codes; the default lexicographic sort is correct here.
+    expect(rows.map((r) => r.npl_status_code).sort()).toEqual(['D', 'F', 'P']); // eslint-disable-line unicorn/require-array-sort-compare
   });
 
   it('serves a second call from cache without refetching', async () => {

@@ -85,7 +85,7 @@ describe('geocodeWithCensus', () => {
 
   it('rejects a blank address without calling the network', async () => {
     const fetchImpl = vi.fn() as unknown as typeof fetch;
-    await expect(geocodeWithCensus(' '.repeat(3), { fetchImpl })).rejects.toThrow(GeocodeNotFoundError);
+    await expect(geocodeWithCensus('   ', { fetchImpl })).rejects.toThrow(GeocodeNotFoundError);
     expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
   });
 });

@@ -35,6 +35,15 @@ const OBSERVED_SECONDS_PER_SITE = 3.75;
 // run crosses this fraction of scraped sites.
 const ALL_NULL_WARN_FRACTION = 0.25;
 
+// `fetchMeasures` is deliberately non-throwing: a per-site fetch or parse
+// failure resolves to null so one bad page can't abort a multi-hour scrape.
+// The consequence is that a run in which *every* site failed still falls out
+// of the loop normally, and `withIngestRun` — which only marks a run failed
+// when something throws — would record `status: 'success'` with 0 records.
+// Throw once the failure rate crosses this fraction of scraped sites so the
+// audit row says failed and main() sets a non-zero exit code.
+const FAILED_ABORT_FRACTION = 0.5;
+
 function parseArgs(argv: string[]): Args {
   const get = (name: string): string | undefined =>
     argv.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
@@ -164,6 +173,16 @@ async function ingestMeasures(prisma: PrismaClient, args: Args): Promise<void> {
       );
     }
 
+    if (sites.length > 0 && failed / sites.length > FAILED_ABORT_FRACTION) {
+      throw new Error(
+        `[measures] ${failed}/${sites.length} scraped sites (${Math.round(
+          (failed / sites.length) * 100
+        )}%) failed to fetch or parse — this exceeds the ${Math.round(
+          FAILED_ABORT_FRACTION * 100
+        )}% threshold and means the scrape is broken (EPA blocking, network, or page-format change), not that these sites are individually unavailable. Failing the run rather than recording a clean one.`
+      );
+    }
+
     return { upserted, rejected: failed, value: undefined };
   });
 }
@@ -205,7 +224,14 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
+/**
+ * The self-execution handle. Runtime behaviour is unchanged — the module still
+ * starts `main()` at load and still handles a rejection by logging and exiting
+ * 1; a normal run resolves and lets the process end naturally so the `finally`
+ * above can `$disconnect()`. Exporting the promise exists so a test that
+ * imports this module can await the run to completion instead of racing it.
+ */
+export const done: Promise<void> = main().catch((error) => {
   console.error(error);
   process.exit(1);
 });

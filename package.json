@@ -1,8 +1,8 @@
 {
   "name": "exposure-tracking-map",
   "version": "1.0.0",
+  "private": true,
   "description": "",
-  "main": "index.js",
   "scripts": {
     "prepare": "svelte-kit sync",
     "dev": "vite dev",

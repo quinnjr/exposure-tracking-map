@@ -7,6 +7,14 @@ on:
     branches: [develop, main]
   workflow_dispatch:
 
+# Least privilege. Every job here executes code from the PR head — `pnpm
+# install`, `lint` (which imports eslint.config.js as Node), `test`, `build`,
+# `docker build` — so the token they run under should not be able to write to
+# the repository. Fork PRs are already read-only (the trigger is
+# `pull_request`, not `pull_request_target`); this caps same-repo PRs too.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -42,9 +50,10 @@ jobs:
       # extends. Run explicitly rather than trusting the `prepare` lifecycle
       # hook: observed against pnpm 11.18.0 (pinned above) that pnpm does NOT
       # fire `prepare` on a fresh `install --frozen-lockfile`, so `pnpm check`
-      # (and `pnpm test`, which also type-checks) would fail on a clean
-      # checkout with "Cannot read file .svelte-kit/tsconfig.json". This step
-      # is defensive regardless of that behaviour and is cheap either way.
+      # would fail on a clean checkout with "Cannot read file
+      # .svelte-kit/tsconfig.json". `pnpm test` needs it too, to resolve the
+      # `$lib`/`$types` aliases — note it does NOT type-check, since it is
+      # `vitest run` with no `test.typecheck` block.
       - run: pnpm exec svelte-kit sync
 
       # Must precede check/test/build: the SvelteKit server routes import
@@ -59,8 +68,11 @@ jobs:
         run: pnpm lint
 
       # This is the step that guards the TypeScript pin. `typescript` is held at
-      # ^6.0.3 because svelte-check 4.7.4 refuses TS 7; without CI running this,
-      # a routine `pnpm up` would break the type check silently.
+      # ^6.0.3 for two independent reasons: svelte-check 4.7.4 refuses TS 7, and
+      # typescript-eslint 8.x declares a peer range of `>=4.8.4 <6.1.0`, so 6.1
+      # would drop it into its unsupported path — a warning, not a failure, so
+      # `pnpm lint` would still read green while type-aware behaviour degraded.
+      # Without CI running this, a routine `pnpm up` breaks both silently.
       - name: Type check
         run: pnpm check
 
@@ -91,9 +103,10 @@ jobs:
       # extends. Run explicitly rather than trusting the `prepare` lifecycle
       # hook: observed against pnpm 11.18.0 (pinned above) that pnpm does NOT
       # fire `prepare` on a fresh `install --frozen-lockfile`, so `pnpm check`
-      # (and `pnpm test`, which also type-checks) would fail on a clean
-      # checkout with "Cannot read file .svelte-kit/tsconfig.json". This step
-      # is defensive regardless of that behaviour and is cheap either way.
+      # would fail on a clean checkout with "Cannot read file
+      # .svelte-kit/tsconfig.json". `pnpm test` needs it too, to resolve the
+      # `$lib`/`$types` aliases — note it does NOT type-check, since it is
+      # `vitest run` with no `test.typecheck` block.
       - run: pnpm exec svelte-kit sync
 
       - run: pnpm exec prisma generate

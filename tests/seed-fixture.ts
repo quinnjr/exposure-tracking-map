@@ -120,7 +120,10 @@ export async function seedFixture(prisma: PrismaClient): Promise<void> {
 if (process.argv[1]?.includes('seed-fixture')) {
   const url = process.env.DATABASE_URL ?? 'file:./e2e.db';
   const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
-  seedFixture(prisma)
-    .then(() => console.log('fixture seeded'))
-    .finally(() => prisma.$disconnect());
+  try {
+    await seedFixture(prisma);
+    console.log('fixture seeded');
+  } finally {
+    await prisma.$disconnect();
+  }
 }

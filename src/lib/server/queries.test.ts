@@ -77,6 +77,39 @@ describe('sitesGeoJson', () => {
       humanExposureStatus: 'Yes'
     });
   });
+
+  // This is the one place the pin `properties` shape is pinned exhaustively.
+  // It belongs here rather than in src/routes/api/sites/server.test.ts: that
+  // route test mocks $lib/server/queries wholesale, so asserting the shape
+  // there would only prove a hand-written fixture survives json(). Here the
+  // object under assertion is produced by sitesGeoJson from a real row, so
+  // renaming, adding, or dropping a key in the .map() above fails this test.
+  it('emits exactly the eight documented pin properties and no others', async () => {
+    await seed();
+    const [feature] = (await sitesGeoJson(db.prisma)).features;
+    expect(feature.properties).toEqual({
+      epaId: 'CTD001153923',
+      semsSiteId: '0100041',
+      name: 'LINEMASTER SWITCH CORP.',
+      city: 'WOODSTOCK',
+      state: 'CT',
+      nplStatusCode: 'F',
+      nplStatusName: 'Currently on the Final NPL',
+      humanExposureStatus: 'Yes'
+    });
+    // Property names are strings; the default lexicographic sort is correct.
+    // eslint-disable-next-line unicorn/require-array-sort-compare
+    expect(Object.keys(feature.properties).sort()).toEqual([
+      'city',
+      'epaId',
+      'humanExposureStatus',
+      'name',
+      'nplStatusCode',
+      'nplStatusName',
+      'semsSiteId',
+      'state'
+    ]);
+  });
 });
 
 describe('siteDetail', () => {

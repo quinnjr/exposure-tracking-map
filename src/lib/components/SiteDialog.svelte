@@ -29,21 +29,21 @@
     detail = null;
     if (!dialog.open) dialog.showModal();
 
-    let isCancelled = false;
+    let cancelled = false;
     fetch(`/api/sites/${encodeURIComponent(epaId)}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
       .then((body: SiteDetail) => {
-        if (!isCancelled) detail = body;
+        if (!cancelled) detail = body;
       })
       .catch(() => {
-        if (!isCancelled) failed = true;
+        if (!cancelled) failed = true;
       })
       .finally(() => {
-        if (!isCancelled) loading = false;
+        if (!cancelled) loading = false;
       });
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
     };
   });
 

@@ -7,10 +7,14 @@ export default defineConfig({
   timeout: 30_000,
 
   // Retries only in CI. These specs drive a real production build behind a
-  // preview server on a shared runner (a full build-and-preview per run), and
-  // that startup path is a plausible source of run-to-run variance unrelated
-  // to the code under test. Locally, retries would hide genuine flakiness, so
-  // there are none.
+  // preview server on a shared runner, and that build-and-preview startup is a
+  // plausible source of run-to-run variance unrelated to the code under test.
+  //
+  // Retries were originally added for a spec that called the live Census
+  // geocoder and failed on CI while passing locally. That spec now stubs
+  // `/api/search`, so the whole suite is hermetic and no test depends on the
+  // network — the retries cover runner variance only, not a known-flaky test.
+  // Locally they would hide genuine flakiness, so there are none.
   retries: process.env.CI ? 2 : 0,
 
   // Fail the run if someone commits `test.only`.

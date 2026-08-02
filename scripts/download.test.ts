@@ -87,28 +87,45 @@ const emptyMeasures: MeasureMap = {
   sitewideReadyForUse: null
 };
 
-/** Import the module fresh so its top-level `main()` re-runs against the argv/mocks in effect. */
+/** Insert a site directly, for sources whose "no sites in the database" precondition must be met first. */
+const seedSite = (semsSiteId = '0100041') =>
+  db.prisma.site.create({
+    data: {
+      semsSiteId,
+      epaId: `E${semsSiteId}`,
+      name: 'SEED SITE',
+      state: 'CT',
+      latitude: 41.9,
+      longitude: -71.9,
+      nplStatusCode: 'F',
+      nplStatusName: 'Currently on the Final NPL',
+      federalFacility: false,
+      archived: false,
+      profileUrl: 'https://example.invalid/p'
+    }
+  });
+
+/**
+ * Import the module fresh so its top-level `main()` re-runs against the
+ * argv/mocks in effect, and await the run to completion. `download.ts` exports
+ * the self-execution promise precisely so this can await a settled run rather
+ * than poll for a log line: polling returns while `main()` is still inside its
+ * `finally` (prisma.$disconnect()), so `afterEach`'s restoreAllMocks() and
+ * deleteMany()s would interleave with an in-flight run.
+ */
 async function runMain(args: string[]): Promise<void> {
   process.argv = ['node', 'scripts/download.ts', ...args];
   vi.resetModules();
-  await import('./download.ts');
+  const mod = (await import('./download.ts')) as { done: Promise<void> };
+  await mod.done;
 }
 
-const summaryLogged = () =>
-  logSpy.mock.calls.some((c) => String(c[0]).includes('[download] summary'));
-
-async function waitForSummary(): Promise<void> {
-  await vi.waitFor(() => expect(summaryLogged()).toBe(true), { timeout: 5000 });
-}
-
-async function waitForExit(): Promise<void> {
-  await vi.waitFor(() => expect(exitSpy).toHaveBeenCalled(), { timeout: 5000 });
-}
+const summaryLine = (): string =>
+  String(logSpy.mock.calls.find((c) => String(c[0]).includes('[download] summary'))?.[0] ?? '');
 
 describe('parseArgs (exercised via CLI argv, through the module self-execution)', () => {
   it('throws on an unknown --source', async () => {
     await runMain(['--source=bogus']);
-    await waitForExit();
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(errorSpy).toHaveBeenCalledWith(
@@ -116,38 +133,40 @@ describe('parseArgs (exercised via CLI argv, through the module self-execution)'
     );
   });
 
-  it.each(['sites', 'contaminants', 'measures'])('accepts a valid --source=%s', async (source) => {
+  it.each([
+    ['sites', () => fetchSiteRowsMock],
+    ['contaminants', () => fetchContaminantRowsMock],
+    ['measures', () => fetchMeasuresMock]
+  ])('--source=%s runs that source and only that source', async (source, own) => {
     // A site must already exist for contaminants/measures to get past their
     // own "no sites" precondition — that failure is unrelated to whether
     // parseArgs accepted the flag.
-    await db.prisma.site.create({
-      data: {
-        semsSiteId: '0100041',
-        epaId: 'CTD001153923',
-        name: 'SEED SITE',
-        state: 'CT',
-        latitude: 41.9,
-        longitude: -71.9,
-        nplStatusCode: 'F',
-        nplStatusName: 'Currently on the Final NPL',
-        federalFacility: false,
-        archived: false,
-        profileUrl: 'https://example.invalid/p'
-      }
-    });
+    await seedSite();
 
     fetchSiteRowsMock.mockResolvedValue([]);
     fetchContaminantRowsMock.mockResolvedValue([]);
+    fetchMeasuresMock.mockResolvedValue(emptyMeasures);
 
-    await runMain([`--source=${source}`, '--dry-run']);
-    await waitForSummary();
+    // Deliberately NOT --dry-run: for measures, dry-run returns before any
+    // fetch, so the run would call no source at all and the "only this one
+    // ran" assertion would hold vacuously.
+    await runMain([`--source=${source}`]);
 
-    // If parseArgs had rejected the source, main() would never reach a
-    // per-source ingest call, and the rejection error (not a summary) would
-    // have been logged instead.
     expect(errorSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining('--source must be one of') })
     );
+    // Accepting the flag is already covered by the sibling rejection test.
+    // What this pins is that `sources: [source]` actually narrows the run:
+    // the named source's fetcher ran and the other two never did.
+    expect(own()).toHaveBeenCalled();
+    for (const [name, other] of [
+      ['sites', fetchSiteRowsMock],
+      ['contaminants', fetchContaminantRowsMock],
+      ['measures', fetchMeasuresMock]
+    ] as const) {
+      if (name !== source) expect(other).not.toHaveBeenCalled();
+    }
+    expect(summaryLine()).toContain(`1 succeeded (${source})`);
   });
 
   it('defaults to all three sources, no limit, not dry-run, not refresh', async () => {
@@ -156,7 +175,6 @@ describe('parseArgs (exercised via CLI argv, through the module self-execution)'
     fetchMeasuresMock.mockResolvedValue(emptyMeasures);
 
     await runMain([]);
-    await waitForSummary();
 
     expect(fetchSiteRowsMock).toHaveBeenCalledWith({ refresh: false });
     expect(fetchContaminantRowsMock).toHaveBeenCalledWith({ refresh: false });
@@ -168,9 +186,21 @@ describe('parseArgs (exercised via CLI argv, through the module self-execution)'
     expect(site.name).toBe('SITE 0100041');
   });
 
-  it.each(['abc', '0', '-5'])('throws on --limit=%s', async (limitRaw) => {
+  it.each([
+    'abc',
+    '0',
+    '-5',
+    '1.5',
+    'Infinity',
+    '1e21',
+    // The discriminating case for Number.isSafeInteger over Number.isInteger:
+    // Number('9007199254740993') === 9007199254740992, an exact integer that
+    // isInteger() accepts and isSafeInteger() rejects. Loosening the guard
+    // back to isFinite/isInteger fails on this row and on this row alone —
+    // every other row above is rejected by both predicates.
+    '9007199254740993'
+  ])('throws on --limit=%s', async (limitRaw) => {
     await runMain([`--limit=${limitRaw}`]);
-    await waitForExit();
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(errorSpy).toHaveBeenCalledWith(
@@ -180,17 +210,43 @@ describe('parseArgs (exercised via CLI argv, through the module self-execution)'
     );
   });
 
-  it('accepts a positive integer --limit', async () => {
-    fetchSiteRowsMock.mockResolvedValue([]);
+  it('applies a positive integer --limit to the measures scrape', async () => {
+    // Five sites in the database, --limit=2: exactly two must be scraped.
+    for (const id of ['0100001', '0100002', '0100003', '0100004', '0100005']) await seedSite(id);
+    fetchMeasuresMock.mockResolvedValue(emptyMeasures);
 
-    await runMain(['--source=sites', '--limit=5', '--dry-run']);
-    await waitForSummary();
+    // Not --dry-run: dry-run returns before the scrape, so the limit would
+    // never be applied to anything observable.
+    await runMain(['--source=measures', '--limit=2']);
 
     expect(errorSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringContaining('--limit must be a positive integer')
       })
     );
+    // The outcome, not just the absence of a validation error: three of the
+    // five sites were left unscraped. Hard-coding `limit: null` in parseArgs
+    // (or dropping the `all.slice(0, args.limit)`) scrapes all five.
+    expect(fetchMeasuresMock).toHaveBeenCalledTimes(2);
+    expect(await db.prisma.site.count({ where: { measuresFetchedAt: { not: null } } })).toBe(2);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[measures] scraping 2 of 5 sites')
+    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('— limited by --limit=2'));
+  });
+
+  it('passes --refresh through to the source fetchers', async () => {
+    fetchSiteRowsMock.mockResolvedValue([rawSite('0100041')]);
+    fetchContaminantRowsMock.mockResolvedValue([]);
+    fetchMeasuresMock.mockResolvedValue(emptyMeasures);
+
+    await runMain(['--refresh']);
+
+    // Without this, a typo in `argv.includes('--refresh')` would silently keep
+    // serving stale cached EPA data with the rest of the suite green.
+    expect(fetchSiteRowsMock).toHaveBeenCalledWith({ refresh: true });
+    expect(fetchContaminantRowsMock).toHaveBeenCalledWith({ refresh: true });
+    expect(fetchMeasuresMock).toHaveBeenCalledWith('0100041', { refresh: true });
   });
 });
 
@@ -202,7 +258,6 @@ describe('main() per-source isolation', () => {
 
     // No --source flag: all three run in order (sites, contaminants, measures).
     await runMain([]);
-    await waitForSummary();
 
     // This is the assertion that would fail if the per-source try/catch in
     // main() were removed: a thrown contaminants ingest would otherwise
@@ -218,9 +273,8 @@ describe('main() per-source isolation', () => {
       expect.any(Error)
     );
     // ...and surfaced in the summary line.
-    const summary = logSpy.mock.calls.find((c) => String(c[0]).includes('[download] summary'))?.[0];
-    expect(summary).toContain('2 succeeded (sites, measures)');
-    expect(summary).toContain('1 failed (contaminants)');
+    expect(summaryLine()).toContain('2 succeeded (sites, measures)');
+    expect(summaryLine()).toContain('1 failed (contaminants)');
 
     // ...and the run is still reported as failed overall via exitCode, not
     // via process.exit (main() lets the process end naturally so `finally`
@@ -235,7 +289,6 @@ describe('--dry-run', () => {
     fetchSiteRowsMock.mockResolvedValue([rawSite('0100041')]);
 
     await runMain(['--source=sites', '--dry-run']);
-    await waitForSummary();
 
     expect(fetchSiteRowsMock).toHaveBeenCalled();
     expect(await db.prisma.site.count()).toBe(0);
@@ -243,24 +296,9 @@ describe('--dry-run', () => {
   });
 
   it('fetches nothing at all for measures, by design', async () => {
-    await db.prisma.site.create({
-      data: {
-        semsSiteId: '0100041',
-        epaId: 'CTD001153923',
-        name: 'SEED SITE',
-        state: 'CT',
-        latitude: 41.9,
-        longitude: -71.9,
-        nplStatusCode: 'F',
-        nplStatusName: 'Currently on the Final NPL',
-        federalFacility: false,
-        archived: false,
-        profileUrl: 'https://example.invalid/p'
-      }
-    });
+    await seedSite();
 
     await runMain(['--source=measures', '--dry-run']);
-    await waitForSummary();
 
     expect(fetchMeasuresMock).not.toHaveBeenCalled();
     const site = await db.prisma.site.findUniqueOrThrow({ where: { semsSiteId: '0100041' } });
@@ -268,5 +306,37 @@ describe('--dry-run', () => {
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining('[measures] dry run — nothing fetched or written')
     );
+  });
+});
+
+describe('measures failure threshold', () => {
+  it('fails the run when more than half the sites fail to scrape', async () => {
+    for (const id of ['0100001', '0100002', '0100003']) await seedSite(id);
+    // fetchMeasures never throws — it resolves null on failure. Before the
+    // FAILED_ABORT_FRACTION guard this run recorded status 'success' with
+    // recordsUpserted 0 and exited 0, so cron saw a clean run.
+    fetchMeasuresMock.mockResolvedValue(null);
+
+    await runMain(['--source=measures']);
+
+    const run = await db.prisma.ingestRun.findFirstOrThrow({ where: { source: 'measures' } });
+    expect(run.status).toBe('failed');
+    expect(run.error).toContain('3/3');
+    expect(process.exitCode).toBe(1);
+    expect(summaryLine()).toContain('1 failed (measures)');
+  });
+
+  it('does not fail a run whose failures stay under the threshold', async () => {
+    for (const id of ['0100001', '0100002', '0100003', '0100004']) await seedSite(id);
+    // 1 of 4 failed — under FAILED_ABORT_FRACTION, so the run still succeeds.
+    fetchMeasuresMock.mockResolvedValueOnce(null).mockResolvedValue(emptyMeasures);
+
+    await runMain(['--source=measures']);
+
+    const run = await db.prisma.ingestRun.findFirstOrThrow({ where: { source: 'measures' } });
+    expect(run.status).toBe('success');
+    expect(run.recordsUpserted).toBe(3);
+    expect(run.recordsRejected).toBe(1);
+    expect(process.exitCode).toBeUndefined();
   });
 });
