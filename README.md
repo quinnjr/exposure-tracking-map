@@ -131,3 +131,13 @@ As ingested from the live EPA sources, the dataset is:
   `pnpm exec vitest run src/lib/server/live.canary.test.ts`. Revert the change
   afterward — it must never run in CI, since it depends on live EPA and Census
   endpoints.
+
+## License and data
+
+The code is MIT licensed — see [LICENSE](LICENSE).
+
+The data is not. This project ingests public records published by the U.S.
+Environmental Protection Agency and geocodes addresses through the U.S. Census
+Bureau; both remain subject to their own terms. The EPA does not endorse or
+review this project, and "Not reported" here means EPA has not published a
+value — never that a site is clean.

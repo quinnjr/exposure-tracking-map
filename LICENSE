@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Data note: this project ingests public data published by the U.S.
-Environmental Protection Agency and geocodes addresses via the U.S. Census
-Bureau. That data is not covered by this license and remains subject to its
-own terms. The EPA does not endorse this project.
