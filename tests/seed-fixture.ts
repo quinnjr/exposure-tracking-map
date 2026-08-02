@@ -47,7 +47,7 @@ export async function seedFixture(prisma: PrismaClient): Promise<void> {
       semsSiteId: '9000002',
       epaId: 'TESTMID0002',
       name: 'FIXTURE MID SITE',
-      latitude: 39.0,
+      latitude: 39,
       longitude: -77.035188,
       humanExposureStatus: 'Insufficient Data',
       profileUrl: 'https://example.invalid/mid'

@@ -49,7 +49,7 @@ describe('isValidCoordinate', () => {
   it('rejects out-of-range values', () => {
     expect(isValidCoordinate(91, 0)).toBe(false);
     expect(isValidCoordinate(0, 181)).toBe(false);
-    expect(isValidCoordinate(Number.NaN, 10)).toBe(false);
+    expect(isValidCoordinate(NaN, 10)).toBe(false);
   });
 });
 
@@ -104,7 +104,7 @@ describe('normalizeSites', () => {
   });
 
   it('normalizes empty strings to null', () => {
-    const { records } = normalizeSites([{ ...LINEMASTER, zip_code: '   ' }]);
+    const { records } = normalizeSites([{ ...LINEMASTER, zip_code: ' '.repeat(3) }]);
     expect(records[0].zip).toBeNull();
   });
 

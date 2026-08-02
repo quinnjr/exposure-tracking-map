@@ -25,7 +25,7 @@ const MILES_PER_DEGREE_LAT = (Math.PI * EARTH_RADIUS_MILES) / 180; // ~69.0934
 
 // Roughly 1, 7, and 70 miles out, due north.
 const CLOSE = site('close', 38.9131, -77.035188);
-const MID = site('mid', 39.0, -77.035188);
+const MID = site('mid', 39, -77.035188);
 const FAR = site('far', 39.9, -77.035188);
 
 describe('radius options', () => {

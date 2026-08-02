@@ -28,7 +28,7 @@ describe('fetchContaminantRows', () => {
       urls.push(String(url));
       // Full page, full page, then a short page.
       const body = urls.length < 3 ? page(CONTAMINANT_PAGE_SIZE) : page(12);
-      return new Response(JSON.stringify(body), { status: 200 });
+      return Response.json(body, { status: 200 });
     }) as unknown as typeof fetch;
 
     const rows = await fetchContaminantRows({ fetchImpl });
@@ -41,7 +41,7 @@ describe('fetchContaminantRows', () => {
 
   it('stops immediately on an empty first page', async () => {
     const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify([]), { status: 200 })
+      Response.json([], { status: 200 })
     ) as unknown as typeof fetch;
     expect(await fetchContaminantRows({ fetchImpl })).toEqual([]);
     expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
@@ -54,7 +54,7 @@ describe('fetchContaminantRows', () => {
 
   it('throws instead of looping forever when every page comes back full', async () => {
     const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify(page(CONTAMINANT_PAGE_SIZE)), { status: 200 })
+      Response.json(page(CONTAMINANT_PAGE_SIZE), { status: 200 })
     ) as unknown as typeof fetch;
 
     // Lower the ceiling so the test stays fast instead of issuing MAX_PAGES requests.

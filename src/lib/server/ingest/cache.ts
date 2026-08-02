@@ -10,7 +10,7 @@ function cacheDir(): string {
 }
 
 /** Collapse anything path-like so a key can never escape the cache directory. */
-const safeKey = (key: string): string => key.replace(/[^a-zA-Z0-9._-]/g, '_');
+const safeKey = (key: string): string => key.replaceAll(/[^a-zA-Z0-9._-]/g, '_');
 
 export function cachePath(key: string): string {
   return join(cacheDir(), `${safeKey(key)}.json`);

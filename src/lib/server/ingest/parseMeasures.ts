@@ -32,12 +32,15 @@ const ENTITIES: Record<string, string> = {
 
 /** Strip tags, decode the entities EPA actually emits, collapse whitespace. */
 function cellText(html: string): string {
-  let s = html.replace(/<[^>]*>/g, ' ');
+  let s = html.replaceAll(/<[^>]*>/g, ' ');
   for (const [entity, char] of Object.entries(ENTITIES)) {
     s = s.split(entity).join(char);
   }
-  s = s.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
-  return s.replace(/\s+/g, ' ').trim();
+  // fromCodePoint, not fromCharCode: the latter takes its argument modulo
+  // 65536, so an entity above U+FFFF (&#128512;) would silently decode to an
+  // unrelated character rather than the intended one.
+  s = s.replaceAll(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)));
+  return s.replaceAll(/\s+/g, ' ').trim();
 }
 
 const EMPTY: MeasureMap = {

@@ -49,7 +49,7 @@ function parseArgs(argv: string[]): Args {
   let limit: number | null = null;
   if (limitRaw !== undefined) {
     limit = Number(limitRaw);
-    if (!Number.isFinite(limit) || !Number.isInteger(limit) || limit <= 0) {
+    if (!Number.isSafeInteger(limit) || limit <= 0) {
       throw new Error(`--limit must be a positive integer, got ${JSON.stringify(limitRaw)}`);
     }
   }
@@ -186,9 +186,9 @@ async function main(): Promise<void> {
       try {
         await ingest(prisma, args);
         succeeded.push(source);
-      } catch (err) {
+      } catch (error) {
         failed.push(source);
-        console.error(`[${source}] failed — continuing with remaining sources:`, err);
+        console.error(`[${source}] failed — continuing with remaining sources:`, error);
       }
     }
 
@@ -205,7 +205,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

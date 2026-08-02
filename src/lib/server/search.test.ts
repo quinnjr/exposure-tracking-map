@@ -31,7 +31,7 @@ beforeEach(async () => {
   await db.prisma.site.createMany({
     data: [
       mkSite('0100001', 'NEAR SITE', 38.9601, -77.035188),
-      mkSite('0100002', 'MID SITE', 39.0, -77.035188),
+      mkSite('0100002', 'MID SITE', 39, -77.035188),
       mkSite('0100003', 'DISTANT SITE', 48.9, -77.035188)
     ]
   });

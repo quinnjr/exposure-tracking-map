@@ -29,21 +29,21 @@
     detail = null;
     if (!dialog.open) dialog.showModal();
 
-    let cancelled = false;
+    let isCancelled = false;
     fetch(`/api/sites/${encodeURIComponent(epaId)}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
       .then((body: SiteDetail) => {
-        if (!cancelled) detail = body;
+        if (!isCancelled) detail = body;
       })
       .catch(() => {
-        if (!cancelled) failed = true;
+        if (!isCancelled) failed = true;
       })
       .finally(() => {
-        if (!cancelled) loading = false;
+        if (!isCancelled) loading = false;
       });
 
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
   });
 
@@ -145,6 +145,7 @@
         {/if}
       </section>
 
+      <!-- An external EPA URL, not an internal route, so resolve() does not apply. -->
       <a
         href={detail.profileUrl}
         target="_blank"

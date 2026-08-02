@@ -19,7 +19,7 @@ const MATCH_BODY = {
 };
 
 const respond = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status });
+  Response.json(body, { status });
 
 describe('normalizeQuery', () => {
   it('lowercases and collapses whitespace', () => {
@@ -85,7 +85,7 @@ describe('geocodeWithCensus', () => {
 
   it('rejects a blank address without calling the network', async () => {
     const fetchImpl = vi.fn() as unknown as typeof fetch;
-    await expect(geocodeWithCensus('   ', { fetchImpl })).rejects.toThrow(GeocodeNotFoundError);
+    await expect(geocodeWithCensus(' '.repeat(3), { fetchImpl })).rejects.toThrow(GeocodeNotFoundError);
     expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
   });
 });

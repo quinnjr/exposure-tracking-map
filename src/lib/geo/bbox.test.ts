@@ -4,7 +4,7 @@ import { haversineMiles } from './haversine';
 
 const MIAMI = { latitude: 25.7617, longitude: -80.1918 };
 const ANCHORAGE = { latitude: 61.2181, longitude: -149.9003 };
-const NEAR_ANTIMERIDIAN = { latitude: 52.0, longitude: 179.9 };
+const NEAR_ANTIMERIDIAN = { latitude: 52, longitude: 179.9 };
 
 describe('boundingBox', () => {
   it('fully contains points at exactly the radius in every cardinal direction', () => {

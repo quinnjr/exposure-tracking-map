@@ -23,19 +23,23 @@ describe('fetchSiteRows', () => {
       const u = String(url);
       seen.push(u);
       const code = u.match(/npl_status_code\/([FDP])\//)![1];
-      return new Response(JSON.stringify([row(`00${code}`, code)]), { status: 200 });
+      return Response.json([row(`00${code}`, code)], { status: 200 });
     }) as unknown as typeof fetch;
 
     const rows = await fetchSiteRows({ fetchImpl });
 
     expect(seen).toHaveLength(NPL_STATUS_CODES.length);
     expect(rows).toHaveLength(3);
-    expect(rows.map((r) => r.npl_status_code).sort()).toEqual(['D', 'F', 'P']);
+    expect(rows.map((r) => r.npl_status_code).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
+      'D',
+      'F',
+      'P'
+    ]);
   });
 
   it('serves a second call from cache without refetching', async () => {
     const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify([row('0100041', 'F')]), { status: 200 })
+      Response.json([row('0100041', 'F')], { status: 200 })
     ) as unknown as typeof fetch;
 
     await fetchSiteRows({ fetchImpl });
@@ -49,7 +53,7 @@ describe('fetchSiteRows', () => {
 
   it('refetches when refresh is set', async () => {
     const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify([row('0100041', 'F')]), { status: 200 })
+      Response.json([row('0100041', 'F')], { status: 200 })
     ) as unknown as typeof fetch;
 
     await fetchSiteRows({ fetchImpl });

@@ -30,6 +30,6 @@ describe.skip('canary', () => {
   it('Census still returns x as longitude and y as latitude', async () => {
     const r = await geocodeWithCensus('1600 Pennsylvania Ave NW, Washington, DC 20500');
     expect(r.latitude).toBeCloseTo(38.9, 1);
-    expect(r.longitude).toBeCloseTo(-77.0, 1);
+    expect(r.longitude).toBeCloseTo(-77, 1);
   }, 60_000);
 });

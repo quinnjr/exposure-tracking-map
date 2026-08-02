@@ -12,7 +12,7 @@ describe('circlePolygon', () => {
     expect(f.type).toBe('Feature');
     expect(f.geometry.type).toBe('Polygon');
     const ring = f.geometry.coordinates[0];
-    expect(ring[0]).toEqual(ring[ring.length - 1]);
+    expect(ring[0]).toEqual(ring.at(-1));
   });
 
   it('places every vertex at the requested radius', () => {
@@ -50,7 +50,7 @@ describe('circlePolygon', () => {
       expect(lon).toBeLessThanOrEqual(180);
     }
 
-    expect(ring[0]).toEqual(ring[ring.length - 1]);
+    expect(ring[0]).toEqual(ring.at(-1));
 
     for (const [lon, lat] of ring) {
       expect(haversineMiles(ADAK, { latitude: lat, longitude: lon })).toBeCloseTo(100, 0);

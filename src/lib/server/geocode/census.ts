@@ -7,7 +7,7 @@ export type GeocodeResult = {
 
 /** The address could not be matched. Permanent for this input; do not retry. */
 export class GeocodeNotFoundError extends Error {
-  constructor(address: string) {
+  public constructor(address: string) {
     super(`No match for address: ${address}`);
     this.name = 'GeocodeNotFoundError';
   }
@@ -15,7 +15,7 @@ export class GeocodeNotFoundError extends Error {
 
 /** The geocoder itself failed. Transient; safe to retry, must not be cached. */
 export class GeocoderUnavailableError extends Error {
-  constructor(cause: string) {
+  public constructor(cause: string) {
     super(`Geocoder unavailable: ${cause}`);
     this.name = 'GeocoderUnavailableError';
   }
@@ -25,7 +25,7 @@ const ENDPOINT = 'https://geocoding.geo.census.gov/geocoder/locations/onelineadd
 
 /** Cache key: case- and whitespace-insensitive. */
 export function normalizeQuery(address: string): string {
-  return address.trim().toLowerCase().replace(/\s+/g, ' ');
+  return address.trim().toLowerCase().replaceAll(/\s+/g, ' ');
 }
 
 type CensusResponse = {
@@ -51,9 +51,9 @@ export async function geocodeWithCensus(
     const res = await doFetch(url);
     if (!res.ok) throw new GeocoderUnavailableError(`HTTP ${res.status}`);
     body = (await res.json()) as CensusResponse;
-  } catch (err) {
-    if (err instanceof GeocoderUnavailableError) throw err;
-    throw new GeocoderUnavailableError(err instanceof Error ? err.message : String(err));
+  } catch (error) {
+    if (error instanceof GeocoderUnavailableError) throw error;
+    throw new GeocoderUnavailableError(error instanceof Error ? error.message : String(error));
   }
 
   const match = body.result?.addressMatches?.[0];

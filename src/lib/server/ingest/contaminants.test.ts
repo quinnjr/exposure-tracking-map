@@ -88,7 +88,7 @@ describe('normalizeContaminants', () => {
   });
 
   it('defaults a blank media_name to Other without dropping the row', () => {
-    const { records, skipped } = normalizeContaminants([row({ media_name: '   ' })], known);
+    const { records, skipped } = normalizeContaminants([row({ media_name: ' '.repeat(3) })], known);
     expect(skipped).toBe(0);
     expect(records).toHaveLength(1);
     expect(records[0].media).toBe('Other');

@@ -66,8 +66,9 @@ export async function siteDetail(
     byMedium.get(link.media)!.add(link.contaminant.name);
   }
 
-  const contaminantsByMedium = [...byMedium.entries()]
-    .map(([medium, names]) => ({ medium, contaminants: [...names].sort() }))
+  const contaminantsByMedium = [...byMedium]
+    // Sorting a Set<string>; the default lexicographic sort is correct here.
+    .map(([medium, names]) => ({ medium, contaminants: [...names].sort() })) // eslint-disable-line unicorn/require-array-sort-compare
     .sort((a, b) => a.medium.localeCompare(b.medium));
 
   return {

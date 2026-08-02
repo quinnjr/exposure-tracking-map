@@ -60,8 +60,8 @@ export function profileUrlFor(semsSiteId: string): string {
  */
 export function isValidCoordinate(lat: number, lon: number): boolean {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
-  if (lat < -90 || lat > 90) return false;
-  if (lon < -180 || lon > 180) return false;
+  if (Math.abs(lat) > 90) return false;
+  if (Math.abs(lon) > 180) return false;
   if (lat === 0 && lon === 0) return false;
   return true;
 }
@@ -75,7 +75,7 @@ function text(v: unknown): string | null {
 
 const number = (v: unknown): number => {
   const s = text(v);
-  return s === null ? Number.NaN : Number(s);
+  return s === null ? NaN : Number(s);
 };
 
 const isYes = (v: unknown): boolean => text(v)?.toUpperCase() === 'Y';

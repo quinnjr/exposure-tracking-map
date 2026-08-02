@@ -56,7 +56,7 @@ async function reconcileStaleRuns(prisma: PrismaClient, source: string): Promise
     data: {
       status: 'failed',
       finishedAt: new Date(),
-      error: `Reconciled as abandoned: still 'running' after more than ${STALE_RUN_THRESHOLD_MS / 60000} minutes.`
+      error: `Reconciled as abandoned: still 'running' after more than ${STALE_RUN_THRESHOLD_MS / 60_000} minutes.`
     }
   });
 }
@@ -86,20 +86,20 @@ export async function withIngestRun<T>(
       }
     });
     return value;
-  } catch (err) {
+  } catch (error) {
     try {
       await prisma.ingestRun.update({
         where: { id: run.id },
         data: {
           status: 'failed',
           finishedAt: new Date(),
-          error: err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err)
+          error: error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error)
         }
       });
-    } catch (auditErr) {
-      console.error(`[ingest] could not record failure for run ${run.id}:`, auditErr);
+    } catch (auditError) {
+      console.error(`[ingest] could not record failure for run ${run.id}:`, auditError);
     }
-    throw err; // always rethrow the ORIGINAL error
+    throw error; // always rethrow the ORIGINAL error
   }
 }
 
