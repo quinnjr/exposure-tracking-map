@@ -41,6 +41,13 @@ jobs:
       # Must precede check/test: the SvelteKit server routes import
       # @prisma/client, and `migrate deploy` does NOT generate under Prisma 7 —
       # only `migrate dev` does.
+      # svelte-kit sync generates .svelte-kit/tsconfig.json, which tsconfig.json
+      # extends. Run explicitly rather than trusting the `prepare` lifecycle
+      # hook: verified that pnpm does NOT fire `prepare` on a fresh
+      # `install --frozen-lockfile`, so check/build would fail on a clean
+      # checkout with "Cannot read file .svelte-kit/tsconfig.json".
+      - run: pnpm exec svelte-kit sync
+
       - run: pnpm exec prisma generate
 
       # This is the step that guards the TypeScript pin. `typescript` is held at
@@ -72,6 +79,13 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      # svelte-kit sync generates .svelte-kit/tsconfig.json, which tsconfig.json
+      # extends. Run explicitly rather than trusting the `prepare` lifecycle
+      # hook: verified that pnpm does NOT fire `prepare` on a fresh
+      # `install --frozen-lockfile`, so check/build would fail on a clean
+      # checkout with "Cannot read file .svelte-kit/tsconfig.json".
+      - run: pnpm exec svelte-kit sync
+
       - run: pnpm exec prisma generate
 
       - name: Install Playwright browser
