@@ -24,11 +24,11 @@ config:
     default: nyc3
   parkinsons-exposure-map:size:
     type: string
-    # DigitalOcean's smallest tier. 1 *shared* vCPU is the floor — there is no
-    # fractional-CPU size — but shared means a time slice, not a dedicated core,
-    # so this is the practical equivalent. 512 MB is the real constraint here,
-    # not the CPU; see the swap file in cloud-init.yaml.
-    default: s-1vcpu-512mb-10gb
+    # 1 shared vCPU is DigitalOcean's floor — there is no fractional-CPU size,
+    # and shared means a time slice rather than a dedicated core. RAM, not CPU,
+    # is what actually binds this workload, so the tier is chosen on memory:
+    # 1 GB leaves real headroom for Node, nginx and dockerd together.
+    default: s-1vcpu-1gb
   parkinsons-exposure-map:image:
     type: string
     default: ghcr.io/quinnjr/exposure-tracking-map:latest

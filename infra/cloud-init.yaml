@@ -72,19 +72,19 @@ write_files:
 
       echo "[deploy] restarting container"
       docker rm -f app 2>/dev/null || true
-      # Memory limits matter on the 512 MB tier. Node sizes its default heap
-      # from TOTAL host memory, so without --max-old-space-size it will happily
-      # grow past what the box has and take nginx down with it. 192 MB heap
-      # inside a 320 MB container leaves room for nginx, dockerd and sshd.
+      # Node sizes its default heap from TOTAL host memory, so without an
+      # explicit --max-old-space-size it will grow past what is actually
+      # available and take nginx down with it. A 448 MB heap inside a 640 MB
+      # container leaves ~360 MB of the 1 GB for nginx, dockerd and sshd.
       docker run -d \
         --name app \
         --restart unless-stopped \
-        --memory 320m \
-        --memory-swap 768m \
+        --memory 640m \
+        --memory-swap 1536m \
         -p 127.0.0.1:3000:3000 \
         -v /srv/app/data:/data \
         -e DATABASE_URL="file:/data/dev.db" \
-        -e NODE_OPTIONS="--max-old-space-size=192" \
+        -e NODE_OPTIONS="--max-old-space-size=448" \
         "$IMAGE"
 
       # Untagged layers from previous deploys, not the whole build cache.
@@ -177,10 +177,11 @@ write_files:
 
 runcmd:
   # --- Swap ----------------------------------------------------------------
-  # Not optional on the 512 MB tier. Decompressing a ~260 MB image during
-  # `docker pull` is itself enough to OOM a swapless box, and the kernel's OOM
-  # killer picks the largest RSS — which is the app. 2 GB on a 10 GB disk.
-  # swappiness is left low so swap is a safety net, not a routine path.
+  # 1 GB is comfortable for steady state but still tight during a `docker pull`
+  # that decompresses a ~260 MB image while the app is running. Swap absorbs
+  # that spike instead of the OOM killer picking the largest RSS, which is the
+  # app. 2 GB on a 25 GB disk; swappiness stays low so this is a safety net
+  # rather than a routine path.
   - fallocate -l 2G /swapfile
   - chmod 600 /swapfile
   - mkswap /swapfile

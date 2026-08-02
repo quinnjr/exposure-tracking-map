@@ -9,7 +9,7 @@ running the app as a Docker container behind nginx, with TLS from Let's Encrypt.
 |---|---|
 | `digitalocean.SshKey` | The account had no keys; the droplet needs one to be reachable at all. |
 | `digitalocean.ReservedIp` | What makes the server *fixed* — the droplet can be rebuilt or resized without the DNS record changing. |
-| `digitalocean.Droplet` | Ubuntu 24.04, `s-1vcpu-512mb-10gb`, `nyc3`. Weekly backups on, 2 GB swap. |
+| `digitalocean.Droplet` | Ubuntu 24.04, `s-1vcpu-1gb`, `nyc3`. Weekly backups on, 2 GB swap. |
 | `digitalocean.ReservedIpAssignment` | Binds the reserved IP to the droplet. |
 | `digitalocean.Firewall` | Cloud firewall: 22/80/443 in, all out. |
 | `digitalocean.DnsRecord` | The single `parkinsons` A record. |
@@ -143,32 +143,33 @@ pulumi stack output uploadDatabaseCommand
 
 | Item | Monthly |
 |---|---|
-| Droplet `s-1vcpu-512mb-10gb` | $4.00 |
-| Droplet backups (20%) | $0.80 |
+| Droplet `s-1vcpu-1gb` | $6.00 |
+| Droplet backups (20%) | $1.20 |
 | Reserved IP (while attached) | $0.00 |
 | GHCR (public) | $0.00 |
-| **Total** | **~$4.80** |
+| **Total** | **~$7.20** |
 
-### Running on 512 MB
+### Sizing
 
-This is DigitalOcean's smallest tier — 1 *shared* vCPU is their floor, there is
-no fractional-CPU size, but shared means a time slice rather than a dedicated
-core. RAM, not CPU, is the binding constraint, so three things exist to keep it
-upright:
+1 *shared* vCPU is DigitalOcean's floor — there is no fractional-CPU size, and
+shared means a time slice rather than a dedicated core. RAM is what actually
+binds this workload, so the tier is picked on memory rather than CPU.
 
-- **2 GB swap file.** Not optional. Decompressing the ~260 MB image during
-  `docker pull` is on its own enough to OOM a swapless 512 MB box, and the
-  kernel's OOM killer targets the largest RSS — which is the app.
-  `vm.swappiness=10` keeps swap a safety net rather than a routine path.
-- **Container capped at 320 MB with `--max-old-space-size=192`.** Node sizes its
-  default heap against *total host memory*, so without the cap it will grow past
-  what the box has and take nginx down with it.
-- **Docker log rotation** (10 MB × 3). The default json-file driver is unbounded,
-  and on a 10 GB disk a chatty container can fill the root filesystem.
+1 GB is comfortable for steady state. Three guards remain, because the tight
+moment is not steady state — it is a `docker pull` decompressing a ~260 MB image
+while the app is still serving:
 
-Headroom is genuinely thin. If the site starts OOM-restarting under real
-traffic, `pulumi config set size s-1vcpu-1gb && pulumi up` is a two-minute fix
-for $2/mo — the reserved IP means the address does not change.
+- **2 GB swap file** (`vm.swappiness=10`). Absorbs the deploy-time spike instead
+  of the OOM killer picking the largest RSS, which is the app. Low swappiness
+  keeps it a safety net rather than a routine path.
+- **Container capped at 640 MB with `--max-old-space-size=448`.** Node sizes its
+  default heap against *total host memory*, so without the cap it grows past
+  what is actually free and takes nginx down with it. This leaves ~360 MB for
+  nginx, dockerd and sshd.
+- **Docker log rotation** (10 MB × 3). The default json-file driver is unbounded.
+
+`pulumi config set size <slug> && pulumi up` resizes in place, and the reserved
+IP means the address never changes.
 
 A reserved IP is free while attached to a running droplet and billed only if
 left dangling — so destroying the droplet but keeping the stack costs money.
