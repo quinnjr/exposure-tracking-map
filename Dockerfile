@@ -71,7 +71,11 @@ RUN bun --bun run vite build
 # and exercising /api/sites, /api/search and /api/sites/[epaId] — a wrongly
 # deleted package fails at request time, not at build time.
 FROM deps AS pruned
-RUN pnpm prune --prod \
+# --ignore-scripts is load-bearing: package.json defines `prepare: svelte-kit
+# sync`, and pnpm fires lifecycle hooks during prune. That hook would run while
+# prune is removing @sveltejs/kit itself, failing with "svelte-kit: not found".
+# Nothing here needs a lifecycle script — the app is already built.
+RUN pnpm prune --prod --ignore-scripts \
  && rm -rf \
       node_modules/.pnpm/prisma@*                `# CLI: generate already ran` \
       node_modules/.pnpm/@prisma+studio-core@*   `# Prisma Studio, a dev GUI` \
