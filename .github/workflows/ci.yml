@@ -94,11 +94,10 @@ jobs:
       # playwright.config.ts drives its own server: migrate deploy -> generate ->
       # seed fixture -> build -> preview, against a throwaway e2e.db.
       #
-      # NOTE: five of the six specs are hermetic because the fixture seeds
-      # GeocodeCache rows for the addresses they use. The unmatchable-address
-      # spec genuinely calls the live US Census geocoder, so this job has a real
-      # third-party dependency and can fail on a Census outage rather than on a
-      # regression. If that becomes noisy, stub that one route.
+      # The suite is hermetic: matching addresses are served from seeded
+      # GeocodeCache rows, and the error-path specs stub /api/search directly.
+      # Nothing here touches the live Census geocoder — that dependency belongs
+      # only to the describe.skip'd canary, which never runs in CI.
       - name: E2E tests
         run: pnpm test:e2e
 

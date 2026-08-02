@@ -72,12 +72,34 @@ test.describe('exposure tracking map', () => {
     await expect(page.getByTestId('result-row')).toHaveCount(3);
   });
 
+  // Stubbed rather than calling the live geocoder. This was the last spec in the
+  // suite making a real network request, and it failed deterministically on CI
+  // runners while passing locally — a different response from Census, not a
+  // regression. The spec's job is the UI's handling of a 422; that the geocoder
+  // actually raises GeocodeNotFoundError on zero matches, and that the route
+  // maps it to 422, are both covered without the network in
+  // census.test.ts and routes/api/search/server.test.ts.
+  //
+  // With this, the whole E2E suite is hermetic, which is what the spec requires:
+  // live-network dependence belongs only to the describe.skip'd canary.
   test('shows a clear message for an unmatchable address', async ({ page }) => {
+    await page.route('**/api/search', async (route) => {
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          message: "We couldn't find that address. Try adding a city and state."
+        })
+      });
+    });
+
     await page.goto('/');
     await page.getByLabel('Street address, city, and state').fill('zzzz not a real address zzzz');
     await page.getByRole('button', { name: 'Search' }).click();
 
     await expect(page.getByText(/couldn't find that address/i)).toBeVisible({ timeout: 20_000 });
+    // Distinct from the retryable-outage copy, mirroring the 503 spec's check.
+    await expect(page.getByText(/unavailable.*try again/i)).not.toBeVisible();
     await expect(page.getByTestId('result-row')).toHaveCount(0);
   });
 
