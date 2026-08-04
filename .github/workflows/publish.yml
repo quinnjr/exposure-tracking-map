@@ -5,8 +5,12 @@ name: Publish container
 #
 # CI's `container` job already builds the image on every push to prove the
 # Dockerfile still works; it deliberately does not push. This workflow is the
-# publishing half, and runs only where a push is meaningful: the default branch
-# and release tags.
+# publishing half, and runs only where a push is meaningful: `main` and release
+# tags.
+#
+# `main` is the release branch but NOT the repository's default branch — that
+# is `develop`. Keep the two apart when reading this file: `is_default_branch`
+# is false on every run of this workflow.
 on:
   push:
     branches: [main]
@@ -61,7 +65,14 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
+            # The droplet pulls `:latest`, so this tag is what a redeploy
+            # actually ships. It must follow `main`, the branch this workflow
+            # publishes from. It previously used `{{is_default_branch}}`, which
+            # resolves against `develop` and is therefore never true here — so
+            # `latest` stayed pinned to an old image, every `app-deploy` after a
+            # main push reported "Image is up to date", and the droplet went on
+            # serving the previous build with nothing to indicate it had.
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push
         id: build
