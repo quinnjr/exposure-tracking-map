@@ -12,10 +12,19 @@ export default defineConfig({
   // at all: no basemap, no clusters, no pins. Excluding it from optimisation
   // leaves the package's own ESM worker resolution intact.
   //
-  // This only ever affected `pnpm dev`. The production build does not use the
-  // optimiser, which is why the E2E suite — which drives a real build behind
-  // `vite preview` — passed throughout while the dev server showed a blank map.
+  // Excluding it is necessary but not sufficient: it fixes how the worker
+  // resolves in dev, while the *production* build broke the same way for a
+  // different reason — Rollup inlines MapLibre into an app chunk, so the URL it
+  // derives from `import.meta.url` points at a file that was never emitted.
+  // `Map.svelte` now calls `setWorkerUrl()` with a Vite-bundled worker, which
+  // covers both. The E2E suite did not catch the production case because it
+  // stubs the basemap, so no spec ever needed a live worker.
   optimizeDeps: { exclude: ['maplibre-gl'] },
+
+  // MapLibre constructs its worker with `new Worker(url, { type: 'module' })`,
+  // so the emitted bundle has to be an ES module. Vite's default is `iife`,
+  // which the module-worker constructor rejects.
+  worker: { format: 'es' },
   test: {
     // Deny-list, not allow-list. This was previously `src/**` only, which meant
     // `scripts/download.test.ts` was collected by no runner at all and silently

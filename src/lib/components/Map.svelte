@@ -7,7 +7,22 @@
   import type { SiteFeatureCollection } from '$lib/types';
   import * as maplibregl from 'maplibre-gl';
   import type { GeoJSONSource, LngLat, Map as MapLibreMap } from 'maplibre-gl';
+  // MapLibre locates its worker by resolving `maplibre-gl-worker.mjs` against
+  // its own `import.meta.url`. That only holds when the package ships as its
+  // own sibling files; once Rollup inlines the library into an app chunk the
+  // derived URL points at `/_app/immutable/nodes/maplibre-gl-worker.mjs`, which
+  // was never emitted — a 404, no worker, and a basemap with no pins on it.
+  // The worker is not self-contained either (it imports
+  // `./maplibre-gl-shared.mjs`), so copying the file as a plain asset would
+  // only move the 404. `?worker&url` makes Vite bundle the worker *and* its
+  // imports into one emitted chunk and hand back its real URL.
+  import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import Legend from './Legend.svelte';
+
+  // MapLibre spawns the worker with `{ type: 'module' }`, which is why
+  // `worker.format` is `es` in vite.config.ts. Must be set before the first
+  // `new maplibregl.Map()`.
+  maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
   type Props = {
     features: SiteFeatureCollection;
