@@ -25,6 +25,16 @@ export default defineConfig({
   // so the emitted bundle has to be an ES module. Vite's default is `iife`,
   // which the module-worker constructor rejects.
   worker: { format: 'es' },
+
+  // Adding the `?worker&url` import to Map.svelte flipped `maplibre-gl` from
+  // inlined to externalised in the SSR build, so the server bundle began
+  // importing it by bare specifier at runtime. The production image deletes
+  // that package on purpose (see the Dockerfile prune step, "client-side only;
+  // in the browser bundle"), so every render of `/` died with
+  // ERR_MODULE_NOT_FOUND while the API routes, which never touch the map, kept
+  // serving 200s. Keep it bundled so the SSR output stays self-contained and
+  // the prune stays valid.
+  ssr: { noExternal: ['maplibre-gl'] },
   test: {
     // Deny-list, not allow-list. This was previously `src/**` only, which meant
     // `scripts/download.test.ts` was collected by no runner at all and silently
